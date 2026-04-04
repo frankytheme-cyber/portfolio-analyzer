@@ -1,0 +1,30 @@
+# API keys e segreti
+.mcp.json
+.env
+.env.*
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+venv/
+.venv/
+env/
+
+# Dati portafoglio (file personali non versionare)
+*.xls
+*.xlsx
+*.csv
+!test_portfolio.csv
+
+# Streamlit
+.streamlit/
+
+# macOS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+*.swp

@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "skills": {
+    "csv-data-summarizer": {
+      "source": "coffeefuelbump/csv-data-summarizer-claude-skill",
+      "sourceType": "github",
+      "computedHash": "691551a714511f24b1e7c2a993b1323210a0ad2acd51b239bfa609a298fc1876"
+    },
+    "financial-analyst": {
+      "source": "alirezarezvani/claude-skills",
+      "ref": "main",
+      "sourceType": "github",
+      "computedHash": "b3cb8e8f4f75dd95ddf2dd7ac5ac8b62094f5b63c51fdcecc3356db06dce9baa"
+    },
+    "xlsx": {
+      "source": "anthropics/skills",
+      "sourceType": "github",
+      "computedHash": "efd0c8011cf0677d8075cf93867ecec804f9a8754a777e1d2fdb46197e9c247f"
+    }
+  }
+}
