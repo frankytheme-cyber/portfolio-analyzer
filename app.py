@@ -6,6 +6,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import re
 import io
+import textwrap
 
 # ── Page config ──────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -13,16 +14,20 @@ st.set_page_config(
     page_icon="◈",
     layout="wide",
     initial_sidebar_state="expanded",
+    menu_items={},
 )
 
 # ── Design system ────────────────────────────────────────────────────────────
 # Aesthetic: "Obsidian Terminal" — deep dark surfaces, luminous cyan/emerald
 # accents, frosted glass panels, monospace data with humanist labels.
 
-st.markdown(
-    """
+st.html(
+    textwrap.dedent("""
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,500;0,9..40,700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,500;0,9..40,700&family=JetBrains+Mono:wght@400;600&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap');
 
     .mat {
         font-family: 'Material Symbols Rounded';
@@ -42,28 +47,52 @@ st.markdown(
     }
 
     :root {
-        --bg-deep:    #0B0E11;
-        --bg-surface: #141820;
-        --bg-card:    rgba(22, 28, 38, 0.72);
-        --glass-border: rgba(255,255,255,0.06);
+        --bg-deep:    #0A0C10;
+        --bg-surface: #111318;
+        --bg-card:    rgba(17, 19, 24, 0.85);
+        --glass-border: rgba(255,255,255,0.05);
         --text-primary:   #E8ECF1;
         --text-secondary: #7A8599;
         --text-muted:     #4A5568;
+
+        /* ── Chromatic Language: semantic class colors ── */
+        --cl-bond:       #22D3EE;   /* BOND       — cerulean */
+        --cl-bond-field: rgba(34,211,238,0.08);
+        --cl-etf:        #34D399;   /* ETF        — emerald  */
+        --cl-etf-field:  rgba(52,211,153,0.08);
+        --cl-cert:       #A78BFA;   /* CERTIFICATE— violet   */
+        --cl-cert-field: rgba(167,139,250,0.08);
+        --cl-comm:       #FBBF24;   /* COMMODITY  — amber    */
+        --cl-comm-field: rgba(251,191,36,0.08);
+        --cl-azione:     #60A5FA;   /* AZIONE     — blue     */
+        --cl-azione-field: rgba(96,165,250,0.08);
+        --cl-altro:      #4A5568;   /* ALTRO      — steel    */
+        --cl-altro-field: rgba(74,85,104,0.08);
+
         --accent-cyan:    #22D3EE;
         --accent-emerald: #34D399;
         --accent-amber:   #FBBF24;
         --accent-rose:    #FB7185;
         --accent-violet:  #A78BFA;
         --accent-blue:    #60A5FA;
-        --glow-cyan:      rgba(34,211,238,0.15);
-        --glow-emerald:   rgba(52,211,153,0.12);
+        --glow-cyan:      rgba(34,211,238,0.12);
+        --glow-emerald:   rgba(52,211,153,0.10);
     }
 
     /* ── Hide Streamlit chrome ───────────────────────────────────── */
     #MainMenu, header[data-testid="stHeader"], footer,
     .stDeployButton, [data-testid="stToolbar"],
-    [data-testid="stDecoration"] {
+    [data-testid="stDecoration"],
+    [data-testid="collapsedControl"],
+    button[data-testid="baseButton-headerNoPadding"] {
         display: none !important;
+    }
+
+    /* ── Sidebar always visible, no collapse button ──────────────── */
+    section[data-testid="stSidebar"] {
+        transform: none !important;
+        min-width: 280px !important;
+        max-width: 320px !important;
     }
 
     /* ── Global ──────────────────────────────────────────────────── */
@@ -135,18 +164,34 @@ st.markdown(
         background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
     }
 
-    /* ── KPI metric cards ────────────────────────────────────────── */
+    /* ── KPI metric cards — Chromatic Language ──────────────────── */
     .kpi-card {
-        text-align: center;
+        text-align: left;
+        position: relative;
+        padding-left: 1.4rem !important;
     }
+    .kpi-card::after {
+        content: '';
+        position: absolute;
+        left: 0; top: 0; bottom: 0;
+        width: 3px;
+        border-radius: 0 2px 2px 0;
+    }
+    .kpi-card.kpi-bond { background: var(--cl-bond-field) !important; border-color: rgba(34,211,238,0.12) !important; }
+    .kpi-card.kpi-bond::after { background: var(--cl-bond); }
+    .kpi-card.kpi-etf  { background: var(--cl-etf-field) !important; border-color: rgba(52,211,153,0.12) !important; }
+    .kpi-card.kpi-etf::after  { background: var(--cl-etf); }
+    .kpi-card.kpi-cert { background: var(--cl-cert-field) !important; border-color: rgba(167,139,250,0.12) !important; }
+    .kpi-card.kpi-cert::after { background: var(--cl-cert); }
+
     .kpi-card .kpi-icon {
-        width: 40px; height: 40px;
-        border-radius: 10px;
+        width: 32px; height: 32px;
+        border-radius: 8px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        font-size: 1.3rem;
-        margin-bottom: 0.7rem;
+        font-size: 1.1rem;
+        margin-bottom: 0.5rem;
     }
     .kpi-card .kpi-label {
         font-size: 0.78rem;
@@ -291,9 +336,32 @@ st.markdown(
         margin-bottom: 0.5rem;
         padding-left: 0.2rem;
     }
+
+    /* ── Chromatic Language: class chip badges ───────────────────── */
+    .cl-chip {
+        display: inline-block;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.65rem;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        padding: 0.15rem 0.5rem;
+        border-radius: 3px;
+        border-left: 2px solid currentColor;
+    }
+    .cl-bond  { color: #22D3EE; background: rgba(34,211,238,0.08); }
+    .cl-etf   { color: #34D399; background: rgba(52,211,153,0.08); }
+    .cl-cert  { color: #A78BFA; background: rgba(167,139,250,0.08); }
+    .cl-comm  { color: #FBBF24; background: rgba(251,191,36,0.08); }
+    .cl-az    { color: #60A5FA; background: rgba(96,165,250,0.08); }
+    .cl-altro { color: #4A5568; background: rgba(74,85,104,0.08); }
+
+    /* ── Chromatic accent on active tab ─────────────────────────── */
+    button[data-baseweb="tab"][aria-selected="true"] {
+        color: var(--cl-bond) !important;
+        border-bottom-color: var(--cl-bond) !important;
+    }
     </style>
-    """,
-    unsafe_allow_html=True,
+    """)
 )
 
 
@@ -1040,6 +1108,138 @@ def to_excel_styled(df: pd.DataFrame, summary: dict | None = None) -> bytes:
     return buf.getvalue()
 
 
+# ── Financial-Analyst skill: portfolio report ────────────────────────────────
+
+def generate_fa_report(df: pd.DataFrame, metrics: dict) -> dict:
+    """
+    Analisi completa del portafoglio ispirata alla financial-analyst skill.
+    Restituisce sezioni strutturate: allocazione, concentrazione, diversificazione,
+    geografia, raccomandazioni.
+    """
+    total = metrics.get("total_value", 0)
+    n     = metrics.get("n_assets", 0)
+    hhi   = metrics.get("hhi", 0)
+
+    # ── 1. Allocazione macro ──────────────────────────────────────────────────
+    class_split = df.groupby("Classe")["Controvalore"].sum().sort_values(ascending=False)
+    alloc = {cls: round(v / total * 100, 1) for cls, v in class_split.items() if total > 0}
+
+    bond_pct  = metrics.get("bond_pct", 0)
+    eq_pct    = metrics.get("eq_pct", 0)
+    other_pct = metrics.get("other_pct", 0)
+
+    if bond_pct > 60:
+        alloc_profile = ("Difensivo", "#22D3EE",
+            f"Il portafoglio è prevalentemente obbligazionario ({bond_pct:.1f}%). "
+            "Questo posizionamento riduce la volatilità ma limita il potenziale di rendimento a lungo termine.")
+    elif eq_pct > 60:
+        alloc_profile = ("Aggressivo", "#34D399",
+            f"Il portafoglio è prevalentemente azionario/ETF ({eq_pct:.1f}%). "
+            "Esposizione elevata alla volatilità di mercato; adatto a orizzonti temporali lunghi.")
+    elif 35 <= bond_pct <= 65 and 35 <= eq_pct <= 65:
+        alloc_profile = ("Bilanciato", "#A78BFA",
+            f"Allocazione equilibrata tra obbligazionario ({bond_pct:.1f}%) e azionario ({eq_pct:.1f}%). "
+            "Profilo coerente con obiettivi di crescita moderata e controllo del rischio.")
+    else:
+        alloc_profile = ("Misto", "#FBBF24",
+            f"Composizione diversificata: obbligazionario {bond_pct:.1f}%, azionario {eq_pct:.1f}%, altro {other_pct:.1f}%.")
+
+    # ── 2. Concentrazione (HHI benchmark dalla financial-analyst skill) ────────
+    # HHI < 0.01 = molto diversificato, 0.01–0.15 = moderato, > 0.15 = concentrato
+    if hhi < 0.06:
+        hhi_label = ("Eccellente", "#34D399",
+            f"HHI {hhi:.4f} — portafoglio ben distribuito. "
+            "Il rischio è suddiviso su molte posizioni con peso equilibrato.")
+    elif hhi < 0.10:
+        hhi_label = ("Buono", "#34D399",
+            f"HHI {hhi:.4f} — diversificazione soddisfacente. "
+            "Qualche posizione di maggior peso, ma entro soglie accettabili.")
+    elif hhi < 0.15:
+        hhi_label = ("Accettabile", "#FBBF24",
+            f"HHI {hhi:.4f} — concentrazione moderata. "
+            "Alcune posizioni pesano significativamente: monitorare il rischio single-name.")
+    else:
+        hhi_label = ("Concentrato", "#FB7185",
+            f"HHI {hhi:.4f} — portafoglio concentrato. "
+            "Poche posizioni dominano il valore: alto rischio specifico.")
+
+    # ── 3. Top holding analysis ───────────────────────────────────────────────
+    df_sorted = df.dropna(subset=["Controvalore"]).sort_values("Controvalore", ascending=False)
+    top5 = df_sorted.head(5)[["Nome", "Classe", "Controvalore", "Peso %"]].copy()
+    top5_pct = metrics.get("top5_pct", 0)
+
+    # ── 4. Diversificazione per sottotipo ─────────────────────────────────────
+    subtype_w = df.groupby("Sottotipo")["Controvalore"].sum() / total * 100
+    active_subtypes = subtype_w[subtype_w > 2].sort_values(ascending=False)
+    n_sub = metrics.get("n_subtypes", 0)
+
+    if n_sub >= 7:
+        sub_comment = "Eccellente copertura per sottocategoria: il portafoglio tocca molti segmenti di mercato."
+    elif n_sub >= 5:
+        sub_comment = "Buona diversificazione per sottocategoria."
+    elif n_sub >= 3:
+        sub_comment = "Diversificazione parziale: ampliare la copertura su altri segmenti migliorerebbe il profilo di rischio."
+    else:
+        sub_comment = "Diversificazione per sottocategoria limitata: il portafoglio è concentrato su pochi segmenti."
+
+    # ── 5. Analisi geografica ──────────────────────────────────────────────────
+    geo_split = df.groupby("Geografia")["Controvalore"].sum().sort_values(ascending=False)
+    geo_pct = {g: round(v / total * 100, 1) for g, v in geo_split.items() if total > 0}
+    top_geo = list(geo_pct.items())[:3]
+
+    non_classified_geo = geo_pct.get("Non classificato", 0)
+    if non_classified_geo > 30:
+        geo_note = f"Attenzione: il {non_classified_geo:.1f}% del portafoglio ha esposizione geografica non classificata."
+    elif len(geo_pct) >= 4:
+        geo_note = "Buona diversificazione geografica su più aree."
+    else:
+        geo_note = "Esposizione geografica concentrata su poche aree."
+
+    # ── 6. Raccomandazioni operative ──────────────────────────────────────────
+    recommendations = []
+    if hhi >= 0.15:
+        recommendations.append(("Alta priorità", "#FB7185",
+            "Ridurre la concentrazione aumentando il numero di posizioni o ribilanciando le più pesanti."))
+    if metrics.get("max_weight", 0) > 25:
+        heaviest = df_sorted.iloc[0]["Nome"] if len(df_sorted) > 0 else "N/A"
+        recommendations.append(("Alta priorità", "#FB7185",
+            f'"{heaviest[:40]}" pesa il {metrics.get("max_weight",0):.1f}%: considerare un parziale alleggerimento.'))
+    if bond_pct > 70:
+        recommendations.append(("Moderata", "#FBBF24",
+            "Allocazione obbligazionaria molto elevata: valutare l'aggiunta di componente azionaria per il lungo periodo."))
+    if eq_pct > 80:
+        recommendations.append(("Moderata", "#FBBF24",
+            "Esposizione azionaria molto elevata: una quota obbligazionaria migliorerebbe la resilienza in fase di correzione."))
+    if non_classified_geo > 30:
+        recommendations.append(("Bassa priorità", "#4A5568",
+            "Verificare e completare la classificazione geografica delle posizioni non classificate."))
+    if n_sub <= 2:
+        recommendations.append(("Moderata", "#FBBF24",
+            "Ampliare la diversificazione per sottocategoria aggiungendo strumenti di classi diverse."))
+    if not recommendations:
+        recommendations.append(("Nessuna azione urgente", "#34D399",
+            "Il portafoglio presenta un profilo di rischio equilibrato. Mantenere il monitoraggio periodico."))
+
+    return {
+        "alloc_profile": alloc_profile,
+        "alloc": alloc,
+        "hhi_label": hhi_label,
+        "top5": top5,
+        "top5_pct": top5_pct,
+        "active_subtypes": active_subtypes,
+        "sub_comment": sub_comment,
+        "geo_pct": geo_pct,
+        "top_geo": top_geo,
+        "geo_note": geo_note,
+        "recommendations": recommendations,
+        "bond_pct": bond_pct,
+        "eq_pct": eq_pct,
+        "other_pct": other_pct,
+        "total": total,
+        "n": n,
+    }
+
+
 # ── Portfolio risk analytics (financial-analyst skill) ──────────────────────
 
 def compute_risk_metrics(df: pd.DataFrame) -> dict:
@@ -1165,13 +1365,14 @@ def generate_insights(df: pd.DataFrame, metrics: dict) -> list[str]:
 
 # ── Plotly theme ─────────────────────────────────────────────────────────────
 
+# Chromatic Language: palette semantica per classe asset
 CHART_PALETTE = [
-    "#22D3EE",  # cyan
-    "#34D399",  # emerald
-    "#FBBF24",  # amber
+    "#22D3EE",  # BOND       — cerulean
+    "#34D399",  # ETF        — emerald
+    "#A78BFA",  # CERTIFICATE— violet
+    "#FBBF24",  # COMMODITY  — amber
+    "#60A5FA",  # AZIONE     — blue
     "#FB7185",  # rose
-    "#A78BFA",  # violet
-    "#60A5FA",  # blue
     "#F472B6",  # pink
     "#2DD4BF",  # teal
 ]
@@ -1208,20 +1409,22 @@ with st.sidebar:
         unsafe_allow_html=True,
     )
     st.markdown(
-        '<p style="font-size:0.82rem; color:#4A5568 !important; margin-bottom:1rem;">Carica un file CSV o Excel per analizzare il portafoglio.</p>',
+        '<p style="font-size:0.82rem; color:#4A5568 !important; margin-bottom:1rem;">Carica uno o più file CSV o Excel per analizzare il portafoglio in modo unificato.</p>',
         unsafe_allow_html=True,
     )
-    uploaded = st.file_uploader(
-        "Trascina qui il file",
+    uploaded_files = st.file_uploader(
+        "Trascina qui i file",
         type=["csv", "xlsx", "xls"],
-        help="CSV, Excel (.xlsx/.xls)",
+        accept_multiple_files=True,
+        help="CSV, Excel (.xlsx/.xls) — puoi caricare più file contemporaneamente",
     )
-    if uploaded is not None:
-        st.markdown(
-            f'<p style="font-family:JetBrains Mono,monospace; font-size:0.72rem; color:#34D399 !important;">'
-            f'✓ {uploaded.name}</p>',
-            unsafe_allow_html=True,
-        )
+    if uploaded_files:
+        for uf in uploaded_files:
+            st.markdown(
+                f'<p style="font-family:JetBrains Mono,monospace; font-size:0.72rem; color:#34D399 !important; margin:0.15rem 0;">'
+                f'✓ {uf.name}</p>',
+                unsafe_allow_html=True,
+            )
     st.markdown("---")
     st.markdown(
         '<p style="font-family: JetBrains Mono, monospace; font-size:0.7rem; color:#4A5568 !important;">v2.0 · Streamlit + Plotly</p>',
@@ -1230,7 +1433,7 @@ with st.sidebar:
 
 # ── Landing state ────────────────────────────────────────────────────────────
 
-if uploaded is None:
+if not uploaded_files:
     st.markdown(
         """
         <div class="hero-container">
@@ -1243,12 +1446,12 @@ if uploaded is None:
             </div>
             <div class="hero-title">Portfolio Analyzer</div>
             <div class="hero-subtitle">
-                Trascina un file CSV o Excel nella sidebar per visualizzare
-                allocazione, composizione e metriche del tuo portafoglio.
+                Trascina uno o più file CSV o Excel nella sidebar per visualizzare
+                allocazione, composizione e metriche del tuo portafoglio unificato.
             </div>
             <div class="hero-hint">
                 <span class="mat arrow" style="font-size:1rem;">arrow_back</span>
-                Carica un file per iniziare
+                Carica uno o più file per iniziare
             </div>
         </div>
         """,
@@ -1368,13 +1571,24 @@ def data_quality_report(raw: pd.DataFrame) -> dict:
     }
 
 
-raw, read_error = read_file(uploaded)
-if read_error:
-    st.error(read_error)
-    st.stop()
+all_raws = []
+for uf in uploaded_files:
+    raw_i, read_error = read_file(uf)
+    if read_error:
+        st.error(f"{uf.name}: {read_error}")
+        st.stop()
+    raw_i["_fonte"] = uf.name
+    all_raws.append(raw_i)
+
+raw = pd.concat(all_raws, ignore_index=True) if len(all_raws) > 1 else all_raws[0]
 
 qr = data_quality_report(raw)
-df = process_portfolio(raw.copy())
+raw_copy = raw.copy()
+df = process_portfolio(raw_copy)
+# _fonte sopravvive a process_portfolio perché non viene toccata
+if "_fonte" in df.columns:
+    df["Fonte"] = df["_fonte"]
+    df = df.drop(columns=["_fonte"])
 
 # ── KPI row ──────────────────────────────────────────────────────────────────
 
@@ -1394,38 +1608,76 @@ st.markdown(
 k1, k2, k3 = st.columns(3)
 with k1:
     st.markdown(
-        f"""<div class="glass-card kpi-card">
-            <div class="kpi-icon kpi-icon-value">
-                <span class="mat" style="font-variation-settings:'FILL' 1,'wght' 300,'GRAD' 0,'opsz' 24;">account_balance_wallet</span>
+        f"""<div class="glass-card kpi-card kpi-bond">
+            <div class="kpi-icon kpi-icon-value" style="background:rgba(34,211,238,0.1);">
+                <span class="mat" style="color:#22D3EE;font-variation-settings:'FILL' 1,'wght' 300,'GRAD' 0,'opsz' 24;">account_balance_wallet</span>
             </div>
-            <div class="kpi-label">Controvalore Totale</div>
-            <div class="kpi-value">€ {total_value:,.2f}</div>
+            <div class="kpi-label" style="color:#22D3EE !important;">Controvalore Totale</div>
+            <div class="kpi-value" style="color:#22D3EE !important;">€ {total_value:,.2f}</div>
         </div>""",
         unsafe_allow_html=True,
     )
 with k2:
     st.markdown(
-        f"""<div class="glass-card kpi-card">
-            <div class="kpi-icon kpi-icon-count">
-                <span class="mat" style="font-variation-settings:'FILL' 1,'wght' 300,'GRAD' 0,'opsz' 24;">dataset</span>
+        f"""<div class="glass-card kpi-card kpi-etf">
+            <div class="kpi-icon kpi-icon-count" style="background:rgba(52,211,153,0.1);">
+                <span class="mat" style="color:#34D399;font-variation-settings:'FILL' 1,'wght' 300,'GRAD' 0,'opsz' 24;">dataset</span>
             </div>
-            <div class="kpi-label">Numero Titoli</div>
-            <div class="kpi-value">{n_assets}</div>
+            <div class="kpi-label" style="color:#34D399 !important;">Numero Titoli</div>
+            <div class="kpi-value" style="color:#34D399 !important;">{n_assets}</div>
         </div>""",
         unsafe_allow_html=True,
     )
 with k3:
     st.markdown(
-        f"""<div class="glass-card kpi-card">
-            <div class="kpi-icon kpi-icon-top">
-                <span class="mat" style="font-variation-settings:'FILL' 1,'wght' 300,'GRAD' 0,'opsz' 24;">trophy</span>
+        f"""<div class="glass-card kpi-card kpi-cert">
+            <div class="kpi-icon kpi-icon-top" style="background:rgba(167,139,250,0.1);">
+                <span class="mat" style="color:#A78BFA;font-variation-settings:'FILL' 1,'wght' 300,'GRAD' 0,'opsz' 24;">trophy</span>
             </div>
-            <div class="kpi-label">Asset Più Pesante</div>
-            <div class="kpi-value" style="font-size:0.95rem; line-height:1.4;">{heaviest_short}</div>
-            <div class="kpi-sub" style="color:#FBBF24;">{heaviest_pct:.1f}%</div>
+            <div class="kpi-label" style="color:#A78BFA !important;">Asset Più Pesante</div>
+            <div class="kpi-value" style="font-size:0.95rem; line-height:1.4; color:#A78BFA !important;">{heaviest_short}</div>
+            <div class="kpi-sub" style="color:#A78BFA;">{heaviest_pct:.1f}%</div>
         </div>""",
         unsafe_allow_html=True,
     )
+
+# ── Chromatic allocation bar ─────────────────────────────────────────────────
+
+CLASS_COLORS = {
+    "BOND":        ("#22D3EE", "rgba(34,211,238,0.18)"),
+    "ETF":         ("#34D399", "rgba(52,211,153,0.18)"),
+    "CERTIFICATE": ("#A78BFA", "rgba(167,139,250,0.18)"),
+    "COMMODITY":   ("#FBBF24", "rgba(251,191,36,0.18)"),
+    "AZIONE":      ("#60A5FA", "rgba(96,165,250,0.18)"),
+    "ALTRO":       ("#4A5568", "rgba(74,85,104,0.18)"),
+}
+
+if has_values:
+    class_totals = df.groupby("Classe")["Controvalore"].sum()
+    total_ctv = class_totals.sum()
+    segments = []
+    for cls, val in class_totals.items():
+        pct = val / total_ctv * 100
+        col_l, col_f = CLASS_COLORS.get(cls, ("#4A5568", "rgba(74,85,104,0.18)"))
+        segments.append((cls, pct, col_l, col_f))
+    segments.sort(key=lambda x: -x[1])
+
+    bar_html = '<div style="display:flex; width:100%; height:6px; border-radius:3px; overflow:hidden; margin:1rem 0 0.4rem;">'
+    for cls, pct, col_l, _ in segments:
+        bar_html += f'<div style="width:{pct:.2f}%; background:{col_l}; opacity:0.7;"></div>'
+    bar_html += '</div>'
+
+    labels_html = '<div style="display:flex; gap:1.2rem; flex-wrap:wrap; margin-bottom:1.5rem;">'
+    for cls, pct, col_l, _ in segments:
+        labels_html += (
+            f'<span style="display:inline-flex; align-items:center; gap:0.35rem; '
+            f'font-family:JetBrains Mono,monospace; font-size:0.7rem; color:{col_l};">'
+            f'<span style="display:inline-block; width:8px; height:8px; border-radius:1px; '
+            f'background:{col_l};"></span>{cls}&nbsp;<span style="opacity:0.5;">{pct:.1f}%</span></span>'
+        )
+    labels_html += '</div>'
+
+    st.markdown(bar_html + labels_html, unsafe_allow_html=True)
 
 # ── Risk metrics & insights ─────────────────────────────────────────────────
 
@@ -2129,6 +2381,114 @@ with tab_analysis:
                         st.metric("Controvalore Post-Stress", f"€ {new_total_stress:,.2f}",
                                   f"€ {eq_delta:,.2f}")
 
+# ── Financial-Analyst Report ─────────────────────────────────────────────────
+
+if risk_metrics:
+    fa = generate_fa_report(df, risk_metrics)
+
+    st.markdown("<div style='height:2rem'></div>", unsafe_allow_html=True)
+    st.markdown(
+        '<div class="section-label"><span class="mat" style="font-size:0.9rem; vertical-align:-2px;">'
+        'person_search</span>&nbsp; Report Financial-Analyst</div>',
+        unsafe_allow_html=True,
+    )
+
+    # ── Profilo allocazione ───────────────────────────────────────────────────
+    prof_name, prof_color, prof_text = fa["alloc_profile"]
+    st.markdown(
+        f"""<div class="glass-card" style="padding:1.2rem 1.6rem; margin-bottom:0.8rem;
+            border-left:3px solid {prof_color}; background:rgba(17,19,24,0.9);">
+            <div style="display:flex; align-items:center; gap:0.6rem; margin-bottom:0.5rem;">
+                <span style="font-family:'JetBrains Mono',monospace; font-size:0.68rem;
+                    font-weight:700; letter-spacing:0.1em; text-transform:uppercase;
+                    color:{prof_color}; background:rgba(0,0,0,0.3);
+                    padding:0.15rem 0.5rem; border-radius:2px;">PROFILO · {prof_name}</span>
+            </div>
+            <p style="font-size:0.9rem; color:#E8ECF1; margin:0; line-height:1.7;">{prof_text}</p>
+        </div>""",
+        unsafe_allow_html=True,
+    )
+
+    # ── Due colonne: concentrazione + geografia ───────────────────────────────
+    fa_c1, fa_c2 = st.columns(2)
+
+    with fa_c1:
+        hhi_name, hhi_color, hhi_text = fa["hhi_label"]
+        st.markdown(
+            f"""<div class="glass-card" style="padding:1.1rem 1.4rem; height:100%;
+                border-left:3px solid {hhi_color};">
+                <div style="font-size:0.68rem; font-weight:700; letter-spacing:0.1em;
+                    text-transform:uppercase; color:{hhi_color}; margin-bottom:0.4rem;">
+                    CONCENTRAZIONE · {hhi_name}
+                </div>
+                <p style="font-size:0.86rem; color:#E8ECF1; margin:0 0 0.8rem; line-height:1.6;">{hhi_text}</p>
+                <div style="font-size:0.8rem; color:#7A8599; margin-bottom:0.3rem;">
+                    Top-5 posizioni: <span style="color:{hhi_color}; font-family:'JetBrains Mono',monospace;">
+                    {fa['top5_pct']:.1f}%</span> del portafoglio
+                </div>
+                <div style="font-size:0.8rem; color:#7A8599;">{fa['sub_comment']}</div>
+            </div>""",
+            unsafe_allow_html=True,
+        )
+
+    with fa_c2:
+        st.markdown(
+            f"""<div class="glass-card" style="padding:1.1rem 1.4rem; height:100%;
+                border-left:3px solid #60A5FA;">
+                <div style="font-size:0.68rem; font-weight:700; letter-spacing:0.1em;
+                    text-transform:uppercase; color:#60A5FA; margin-bottom:0.4rem;">
+                    ESPOSIZIONE GEOGRAFICA
+                </div>
+                <p style="font-size:0.86rem; color:#E8ECF1; margin:0 0 0.8rem; line-height:1.6;">{fa['geo_note']}</p>
+                {''.join(
+                    f'<div style="display:flex; justify-content:space-between; align-items:center; '
+                    f'margin-bottom:0.3rem;">'
+                    f'<span style="font-size:0.8rem; color:#7A8599;">{g}</span>'
+                    f'<span style="font-family:JetBrains Mono,monospace; font-size:0.8rem; color:#60A5FA;">{p:.1f}%</span>'
+                    f'</div>'
+                    for g, p in fa['top_geo']
+                )}
+            </div>""",
+            unsafe_allow_html=True,
+        )
+
+    st.markdown("<div style='height:0.8rem'></div>", unsafe_allow_html=True)
+
+    # ── Top 5 holdings table ──────────────────────────────────────────────────
+    st.markdown(
+        '<div style="font-size:0.68rem; font-weight:700; letter-spacing:0.1em; '
+        'text-transform:uppercase; color:#4A5568; margin-bottom:0.4rem;">'
+        'TOP 5 POSIZIONI PER CONTROVALORE</div>',
+        unsafe_allow_html=True,
+    )
+    fa_top5 = fa["top5"].copy()
+    fa_top5["Controvalore"] = fa_top5["Controvalore"].apply(lambda x: f"€ {x:,.2f}" if pd.notna(x) else "N/D")
+    fa_top5["Peso %"] = fa_top5["Peso %"].apply(lambda x: f"{x:.2f}%" if pd.notna(x) else "N/D")
+    st.dataframe(fa_top5, use_container_width=True, hide_index=True)
+
+    st.markdown("<div style='height:0.8rem'></div>", unsafe_allow_html=True)
+
+    # ── Raccomandazioni ───────────────────────────────────────────────────────
+    st.markdown(
+        '<div style="font-size:0.68rem; font-weight:700; letter-spacing:0.1em; '
+        'text-transform:uppercase; color:#4A5568; margin-bottom:0.6rem;">'
+        'RACCOMANDAZIONI OPERATIVE</div>',
+        unsafe_allow_html=True,
+    )
+    for priority, rec_color, rec_text in fa["recommendations"]:
+        st.markdown(
+            f"""<div style="display:flex; gap:0.8rem; align-items:flex-start;
+                margin-bottom:0.5rem; padding:0.7rem 1rem;
+                background:rgba(17,19,24,0.8); border-radius:8px;
+                border-left:2px solid {rec_color};">
+                <span style="font-family:'JetBrains Mono',monospace; font-size:0.65rem;
+                    font-weight:700; color:{rec_color}; white-space:nowrap;
+                    padding-top:0.1rem;">{priority.upper()}</span>
+                <span style="font-size:0.86rem; color:#E8ECF1; line-height:1.6;">{rec_text}</span>
+            </div>""",
+            unsafe_allow_html=True,
+        )
+
 # ── Data quality (in fondo alla pagina) ─────────────────────────────────────
 
 st.markdown("<div style='height:2rem'></div>", unsafe_allow_html=True)
@@ -2152,7 +2512,7 @@ with st.expander(
     valid_ctv = df["Controvalore"].notna().sum() if "Controvalore" in df.columns else 0
     st.markdown(
         f'<p style="font-family:JetBrains Mono,monospace; font-size:0.75rem; color:#4A5568;">'
-        f'File: {uploaded.name} &nbsp;·&nbsp; {qr["rows"]} righe lette &nbsp;·&nbsp; '
+        f'File: {", ".join(uf.name for uf in uploaded_files)} &nbsp;·&nbsp; {qr["rows"]} righe lette &nbsp;·&nbsp; '
         f'{len(df)} righe processate &nbsp;·&nbsp; {valid_ctv} con controvalore</p>',
         unsafe_allow_html=True,
     )
