@@ -21,6 +21,9 @@ env/
 # Streamlit
 .streamlit/
 
+# Cache locale (upload + chat history persistiti tra reload)
+.cache/
+
 # macOS
 .DS_Store
 

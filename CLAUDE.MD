@@ -17,10 +17,12 @@ python3 -m streamlit run app.py --server.headless true
 ## Dependencies
 
 ```bash
-pip3 install streamlit plotly pandas openpyxl
+pip3 install streamlit plotly pandas openpyxl anthropic
 ```
 
 No `requirements.txt` — install manually as above. Python 3.9 is in use; use `from __future__ import annotations` for `X | Y` type hints.
+
+`anthropic` è richiesto solo per la tab Chat. Imposta `ANTHROPIC_API_KEY` come variabile d'ambiente o in `.streamlit/secrets.toml`.
 
 ## Architecture
 
@@ -30,8 +32,10 @@ Everything lives in a single file: `app.py`.
 1. **CSS injection** — full dark-theme design system (`"Obsidian Terminal"`) injected via `st.markdown` at module level. Uses CSS variables and targets Streamlit internals (`[data-testid="stHeader"]`, `div[data-baseweb="tab-list"]`, etc.). Material Symbols Rounded loaded via Google Fonts; icons rendered as `<span class="mat">icon_name</span>`.
 2. **Classification helpers** — pure functions (`classify_asset`, `infer_sector`) with priority order: CERTIFICATE → ETF → BOND → AZIONE → ALTRO.
 3. **Data cleaning** — `clean_numeric` handles Italian locale numbers (`7.125,00 €` → `7125.0`); `normalize_columns` maps variant header names to canonical ones via `HEADER_MAP`; `process_portfolio` orchestrates both plus classification and weight calculation.
-4. **Excel export** (`to_excel_styled`) — openpyxl: blue text for ISIN/Nome, black for numerics, thin borders, thousands separator.
-5. **Streamlit UI** — sidebar → landing guard (`st.stop()`) → KPI row (3 glass cards) → tabs: Grafici (2 donuts + horizontal bar) / Tabella Dati (styled dataframe + download buttons).
+4. **Crypto manuali** — form in sidebar; persistite in `crypto.json` accanto a `app.py` via `load_crypto`/`save_crypto`. `crypto_rows_to_df` le converte in righe con `Classe="CRYPTO"` e vengono concatenate al df principale dopo `process_portfolio`, con ricalcolo dei pesi.
+5. **Excel export** (`to_excel_styled`) — openpyxl: blue text for ISIN/Nome, black for numerics, thin borders, thousands separator.
+6. **Streamlit UI** — sidebar (uploader + form crypto) → landing guard (`st.stop()`) → KPI row (3 glass cards) → tabs: Grafici / Tabella Dati / Analisi / Chat.
+7. **Chat tab** — usa `anthropic.Anthropic` con modello `claude-sonnet-4-6` in streaming. Il portafoglio è iniettato nella prima user message con `cache_control: ephemeral` (prompt caching). La cronologia vive in `st.session_state.chat_history`. Senza API key la tab mostra istruzioni invece di errore.
 
 **Key conventions:**
 - `PLOTLY_LAYOUT` dict is reused across all figures (transparent bg, DM Sans font, dark grid lines).

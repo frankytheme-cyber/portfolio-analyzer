@@ -6,7 +6,10 @@ import plotly.express as px
 import plotly.graph_objects as go
 import re
 import io
+import json
+import os
 import textwrap
+from pathlib import Path
 
 # ── Page config ──────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -25,9 +28,14 @@ st.html(
     textwrap.dedent("""
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,500;0,9..40,700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,300..900,0..100,0..1;1,9..144,300..900,0..100,0..1&family=Bricolage+Grotesque:opsz,wght@12..96,300..800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
     <style>
+
+    /* ═══════════════════════════════════════════════════════════════
+       ALMANAC — Editorial financial-paper aesthetic
+       Cream stock · ink rules · Fraunces display · tabular figures
+       ═══════════════════════════════════════════════════════════════ */
 
     .mat {
         font-family: 'Material Symbols Rounded';
@@ -47,36 +55,56 @@ st.html(
     }
 
     :root {
-        --bg-deep:    #0A0C10;
-        --bg-surface: #111318;
-        --bg-card:    rgba(17, 19, 24, 0.85);
-        --glass-border: rgba(255,255,255,0.05);
-        --text-primary:   #E8ECF1;
-        --text-secondary: #7A8599;
-        --text-muted:     #4A5568;
+        /* Paper stock — warm cream with FT-coded blush */
+        --paper:        #F4ECDF;
+        --paper-warm:   #EFE5D2;
+        --paper-cool:   #FAF4E8;
+        --card:         #FFFFFF;
+        --card-tint:    #FBF7EE;
 
-        /* ── Chromatic Language: semantic class colors ── */
-        --cl-bond:       #22D3EE;   /* BOND       — cerulean */
-        --cl-bond-field: rgba(34,211,238,0.08);
-        --cl-etf:        #34D399;   /* ETF        — emerald  */
-        --cl-etf-field:  rgba(52,211,153,0.08);
-        --cl-cert:       #A78BFA;   /* CERTIFICATE— violet   */
-        --cl-cert-field: rgba(167,139,250,0.08);
-        --cl-comm:       #FBBF24;   /* COMMODITY  — amber    */
-        --cl-comm-field: rgba(251,191,36,0.08);
-        --cl-azione:     #60A5FA;   /* AZIONE     — blue     */
-        --cl-azione-field: rgba(96,165,250,0.08);
-        --cl-altro:      #4A5568;   /* ALTRO      — steel    */
-        --cl-altro-field: rgba(74,85,104,0.08);
+        /* Ink */
+        --ink:           #1A1815;
+        --ink-soft:      #3D362D;
+        --ink-secondary: #6B6258;
+        --ink-muted:     #A09A8E;
+        --ink-faint:     #C9C0B0;
 
-        --accent-cyan:    #22D3EE;
-        --accent-emerald: #34D399;
-        --accent-amber:   #FBBF24;
-        --accent-rose:    #FB7185;
-        --accent-violet:  #A78BFA;
-        --accent-blue:    #60A5FA;
-        --glow-cyan:      rgba(34,211,238,0.12);
-        --glow-emerald:   rgba(52,211,153,0.10);
+        /* Hairline rules */
+        --rule:          #1A1815;
+        --rule-soft:     rgba(26,24,21,0.18);
+        --rule-faint:    rgba(26,24,21,0.10);
+
+        /* Accent — single editorial crimson */
+        --accent:        #9E2A2B;
+        --accent-soft:   rgba(158,42,43,0.08);
+
+        /* Chromatic Language — paper-friendly muted */
+        --cl-bond:        #1F5F5B;
+        --cl-bond-tint:   rgba(31,95,91,0.07);
+        --cl-etf:         #3B5A36;
+        --cl-etf-tint:    rgba(59,90,54,0.07);
+        --cl-cert:        #6B2E5F;
+        --cl-cert-tint:   rgba(107,46,95,0.07);
+        --cl-comm:        #B45309;
+        --cl-comm-tint:   rgba(180,83,9,0.07);
+        --cl-azione:      #1E3A8A;
+        --cl-azione-tint: rgba(30,58,138,0.07);
+        --cl-crypto:      #C9893A;
+        --cl-crypto-tint: rgba(201,137,58,0.08);
+        --cl-altro:       #6B6258;
+        --cl-altro-tint:  rgba(107,98,88,0.07);
+
+        /* Backwards-compat aliases used inline in the body */
+        --accent-cyan:    var(--cl-bond);
+        --accent-emerald: var(--cl-etf);
+        --accent-amber:   var(--cl-comm);
+        --accent-violet:  var(--cl-cert);
+        --accent-blue:    var(--cl-azione);
+        --accent-rose:    var(--cl-crypto);
+
+        --text-primary:   var(--ink);
+        --text-secondary: var(--ink-secondary);
+        --text-muted:     var(--ink-muted);
     }
 
     /* ── Hide Streamlit chrome ───────────────────────────────────── */
@@ -88,278 +116,575 @@ st.html(
         display: none !important;
     }
 
-    /* ── Sidebar always visible, no collapse button ──────────────── */
     section[data-testid="stSidebar"] {
         transform: none !important;
-        min-width: 280px !important;
-        max-width: 320px !important;
+        min-width: 300px !important;
+        max-width: 340px !important;
     }
 
-    /* ── Global ──────────────────────────────────────────────────── */
+    /* ── Global paper ────────────────────────────────────────────── */
     .stApp {
-        background: var(--bg-deep) !important;
-        color: var(--text-primary);
-        font-family: 'DM Sans', sans-serif;
+        background: var(--paper) !important;
+        color: var(--ink);
+        font-family: 'Bricolage Grotesque', 'Helvetica Neue', sans-serif;
+        font-feature-settings: 'ss01', 'ss02', 'tnum';
     }
+    /* Subtle paper grain — SVG noise overlay */
     .stApp::before {
         content: '';
         position: fixed;
         inset: 0;
-        background:
-            radial-gradient(ellipse 80% 60% at 20% 10%, rgba(34,211,238,0.04), transparent),
-            radial-gradient(ellipse 60% 50% at 80% 80%, rgba(52,211,153,0.03), transparent);
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.10  0 0 0 0 0.09  0 0 0 0 0.08  0 0 0 0.04 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+        opacity: 0.6;
         pointer-events: none;
         z-index: 0;
+        mix-blend-mode: multiply;
+    }
+    .stApp > * { position: relative; z-index: 1; }
+
+    /* Tabular numerals globally */
+    [class*="kpi-value"], [class*="kpi-sub"],
+    code, pre, .stDataFrame, .stMetric {
+        font-feature-settings: 'tnum' 1, 'lnum' 1;
     }
 
-    /* ── Sidebar ─────────────────────────────────────────────────── */
+    /* ── Sidebar — paper-tinted column with hairline rule ─────────── */
     section[data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #0F1318 0%, #141820 100%) !important;
-        border-right: 1px solid var(--glass-border) !important;
+        background: var(--paper-warm) !important;
+        border-right: 1px solid var(--rule) !important;
+    }
+    /* Ensure inner content scrolls — Streamlit uses different test-ids
+       across versions, so cover both. */
+    section[data-testid="stSidebar"] [data-testid="stSidebarContent"],
+    section[data-testid="stSidebar"] [data-testid="stSidebarUserContent"],
+    section[data-testid="stSidebar"] > div:first-child {
+        height: 100vh !important;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+        padding-top: 0.5rem;
     }
     section[data-testid="stSidebar"] .stMarkdown p,
     section[data-testid="stSidebar"] .stMarkdown span,
     section[data-testid="stSidebar"] label {
-        color: var(--text-secondary) !important;
+        color: var(--ink-secondary) !important;
     }
-    section[data-testid="stSidebar"] .stFileUploader {
-        border: 1px dashed rgba(34,211,238,0.25) !important;
-        border-radius: 12px !important;
-        background: rgba(34,211,238,0.03) !important;
+    section[data-testid="stSidebar"] .stFileUploader > section {
+        border: 1px dashed var(--rule-soft) !important;
+        border-radius: 2px !important;
+        background: var(--card-tint) !important;
         transition: border-color 0.3s, background 0.3s;
     }
-    section[data-testid="stSidebar"] .stFileUploader:hover {
-        border-color: rgba(34,211,238,0.5) !important;
-        background: rgba(34,211,238,0.06) !important;
+    section[data-testid="stSidebar"] .stFileUploader > section:hover {
+        border-color: var(--accent) !important;
+        background: var(--accent-soft) !important;
     }
     section[data-testid="stSidebar"] hr {
-        border-color: var(--glass-border) !important;
+        border-color: var(--rule-soft) !important;
+        margin: 1.2rem 0 !important;
+    }
+    section[data-testid="stSidebar"] input,
+    section[data-testid="stSidebar"] textarea {
+        background: var(--card) !important;
+        border: 1px solid var(--rule-soft) !important;
+        border-radius: 2px !important;
+        color: var(--ink) !important;
+        font-family: 'JetBrains Mono', monospace !important;
+        font-size: 0.85rem !important;
+    }
+    section[data-testid="stSidebar"] input:focus,
+    section[data-testid="stSidebar"] textarea:focus {
+        border-color: var(--ink) !important;
+        box-shadow: none !important;
+    }
+    section[data-testid="stSidebar"] [data-baseweb="input"] {
+        background: var(--card) !important;
+    }
+    section[data-testid="stSidebar"] button[kind="formSubmit"],
+    section[data-testid="stSidebar"] button[kind="secondary"],
+    section[data-testid="stSidebar"] [data-testid="baseButton-secondaryFormSubmit"] {
+        background: var(--ink) !important;
+        color: var(--paper-cool) !important;
+        border: 1px solid var(--ink) !important;
+        border-radius: 2px !important;
+        font-family: 'Bricolage Grotesque', sans-serif !important;
+        font-weight: 600 !important;
+        font-size: 0.82rem !important;
+        letter-spacing: 0.04em !important;
+        text-transform: uppercase !important;
+        transition: background 0.15s !important;
+    }
+    section[data-testid="stSidebar"] button[kind="formSubmit"]:hover,
+    section[data-testid="stSidebar"] [data-testid="baseButton-secondaryFormSubmit"]:hover {
+        background: var(--accent) !important;
+        border-color: var(--accent) !important;
+    }
+    /* Sidebar small "x" delete button */
+    section[data-testid="stSidebar"] .stButton > button {
+        background: transparent !important;
+        color: var(--ink-muted) !important;
+        border: 1px solid var(--rule-soft) !important;
+        border-radius: 2px !important;
+        font-family: 'JetBrains Mono', monospace !important;
+        padding: 0.25rem 0.5rem !important;
+    }
+    section[data-testid="stSidebar"] .stButton > button:hover {
+        color: var(--accent) !important;
+        border-color: var(--accent) !important;
     }
 
-    /* ── Typography overrides ────────────────────────────────────── */
-    h1, h2, h3, h4 { color: var(--text-primary) !important; font-family: 'DM Sans', sans-serif !important; }
-    p, span, label, li { color: var(--text-secondary) !important; }
+    /* ── Typography ──────────────────────────────────────────────── */
+    h1, h2, h3 {
+        color: var(--ink) !important;
+        font-family: 'Fraunces', 'Times New Roman', serif !important;
+        font-variation-settings: 'opsz' 96, 'SOFT' 30, 'WONK' 0;
+        font-weight: 500 !important;
+        letter-spacing: -0.025em !important;
+        line-height: 1.05 !important;
+    }
+    h4, h5, h6 {
+        color: var(--ink) !important;
+        font-family: 'Bricolage Grotesque', sans-serif !important;
+        font-weight: 700 !important;
+    }
+    p, span, label, li { color: var(--ink-soft); }
 
-    /* ── Glass card ──────────────────────────────────────────────── */
+    /* ── Editorial card (replaces glass-card) ────────────────────── */
     .glass-card {
-        background: var(--bg-card);
-        backdrop-filter: blur(16px) saturate(1.2);
-        -webkit-backdrop-filter: blur(16px) saturate(1.2);
-        border: 1px solid var(--glass-border);
-        border-radius: 16px;
-        padding: 1.5rem 1.8rem;
+        background: var(--card);
+        border: 1px solid var(--ink);
+        border-radius: 2px;
+        padding: 1.4rem 1.6rem;
         position: relative;
-        overflow: hidden;
-        transition: transform 0.25s ease, border-color 0.25s ease;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        box-shadow: 3px 3px 0 var(--rule-faint);
     }
     .glass-card:hover {
-        transform: translateY(-2px);
-        border-color: rgba(255,255,255,0.10);
-    }
-    .glass-card::before {
-        content: '';
-        position: absolute;
-        top: 0; left: 0; right: 0;
-        height: 1px;
-        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+        transform: translate(-1px, -1px);
+        box-shadow: 5px 5px 0 var(--rule-soft);
     }
 
     /* ── KPI metric cards — Chromatic Language ──────────────────── */
     .kpi-card {
         text-align: left;
         position: relative;
-        padding-left: 1.4rem !important;
+        padding: 1.2rem 1.4rem !important;
+        border-top: 4px solid var(--ink) !important;
+        border-radius: 0 !important;
     }
-    .kpi-card::after {
-        content: '';
-        position: absolute;
-        left: 0; top: 0; bottom: 0;
-        width: 3px;
-        border-radius: 0 2px 2px 0;
-    }
-    .kpi-card.kpi-bond { background: var(--cl-bond-field) !important; border-color: rgba(34,211,238,0.12) !important; }
-    .kpi-card.kpi-bond::after { background: var(--cl-bond); }
-    .kpi-card.kpi-etf  { background: var(--cl-etf-field) !important; border-color: rgba(52,211,153,0.12) !important; }
-    .kpi-card.kpi-etf::after  { background: var(--cl-etf); }
-    .kpi-card.kpi-cert { background: var(--cl-cert-field) !important; border-color: rgba(167,139,250,0.12) !important; }
-    .kpi-card.kpi-cert::after { background: var(--cl-cert); }
+    .kpi-card.kpi-bond { border-top-color: var(--cl-bond) !important; }
+    .kpi-card.kpi-etf  { border-top-color: var(--cl-etf) !important; }
+    .kpi-card.kpi-cert { border-top-color: var(--cl-cert) !important; }
 
     .kpi-card .kpi-icon {
-        width: 32px; height: 32px;
-        border-radius: 8px;
+        width: 28px; height: 28px;
+        border-radius: 0;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        font-size: 1.1rem;
-        margin-bottom: 0.5rem;
+        font-size: 1rem;
+        margin-bottom: 0.4rem;
+        background: transparent !important;
+        border: 1px solid currentColor;
     }
     .kpi-card .kpi-label {
-        font-size: 0.78rem;
-        font-weight: 500;
-        letter-spacing: 0.06em;
+        font-family: 'Bricolage Grotesque', sans-serif;
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 0.14em;
         text-transform: uppercase;
-        color: var(--text-muted) !important;
-        margin-bottom: 0.35rem;
+        color: var(--ink-muted) !important;
+        margin: 0.4rem 0 0.5rem;
+        padding-bottom: 0.4rem;
+        border-bottom: 1px solid var(--rule-soft);
     }
     .kpi-card .kpi-value {
-        font-family: 'JetBrains Mono', monospace;
-        font-size: 1.65rem;
-        font-weight: 600;
-        color: var(--text-primary) !important;
-        line-height: 1.2;
+        font-family: 'Fraunces', serif;
+        font-variation-settings: 'opsz' 144, 'SOFT' 30, 'WONK' 0;
+        font-size: 1.95rem;
+        font-weight: 500;
+        color: var(--ink) !important;
+        line-height: 1.0;
+        letter-spacing: -0.02em;
+        font-feature-settings: 'tnum' 1, 'lnum' 1, 'ss01' 1;
     }
     .kpi-card .kpi-sub {
         font-family: 'JetBrains Mono', monospace;
-        font-size: 1.05rem;
-        font-weight: 600;
-        margin-top: 0.2rem;
+        font-size: 0.95rem;
+        font-weight: 500;
+        margin-top: 0.4rem;
+        letter-spacing: -0.01em;
     }
 
-    /* Icon backgrounds per KPI */
-    .kpi-icon-value { background: var(--glow-cyan); color: var(--accent-cyan); }
-    .kpi-icon-count { background: var(--glow-emerald); color: var(--accent-emerald); }
-    .kpi-icon-top   { background: rgba(251,191,36,0.12); color: var(--accent-amber); }
+    .kpi-icon-value { color: var(--cl-bond) !important; }
+    .kpi-icon-count { color: var(--cl-etf) !important; }
+    .kpi-icon-top   { color: var(--cl-cert) !important; }
 
-    /* ── Tabs ────────────────────────────────────────────────────── */
+    /* ── Tabs — newspaper section nav ───────────────────────────── */
     div[data-baseweb="tab-list"] {
         background: transparent !important;
-        border-bottom: 1px solid var(--glass-border) !important;
+        border-bottom: 2px solid var(--ink) !important;
         gap: 0 !important;
+        padding-left: 0 !important;
     }
     button[data-baseweb="tab"] {
-        font-family: 'DM Sans', sans-serif !important;
+        font-family: 'Bricolage Grotesque', sans-serif !important;
         font-weight: 600 !important;
-        font-size: 0.92rem !important;
-        color: var(--text-muted) !important;
-        border-bottom: 2px solid transparent !important;
-        padding: 0.6rem 1.2rem !important;
-        transition: color 0.2s, border-color 0.2s !important;
+        font-size: 0.78rem !important;
+        letter-spacing: 0.16em !important;
+        text-transform: uppercase !important;
+        color: var(--ink-muted) !important;
+        background: transparent !important;
+        border: none !important;
+        border-bottom: 3px solid transparent !important;
+        padding: 0.7rem 1.4rem !important;
+        margin-bottom: -2px !important;
+        transition: color 0.2s, border-color 0.2s, background 0.2s !important;
     }
     button[data-baseweb="tab"]:hover {
-        color: var(--text-secondary) !important;
+        color: var(--ink) !important;
+        background: var(--card-tint) !important;
     }
     button[data-baseweb="tab"][aria-selected="true"] {
-        color: var(--accent-cyan) !important;
-        border-bottom-color: var(--accent-cyan) !important;
+        color: var(--accent) !important;
+        border-bottom-color: var(--accent) !important;
     }
+    div[data-baseweb="tab-highlight"] { display: none !important; }
 
     /* ── Dataframe ───────────────────────────────────────────────── */
     .stDataFrame {
-        border: 1px solid var(--glass-border) !important;
-        border-radius: 12px !important;
+        border: 1px solid var(--ink) !important;
+        border-radius: 0 !important;
         overflow: hidden !important;
+        background: var(--card) !important;
+    }
+    .stDataFrame [data-testid="stDataFrameResizable"] { background: var(--card) !important; }
+    .stDataFrame thead tr th {
+        background: var(--ink) !important;
+        color: var(--paper-cool) !important;
+        font-family: 'Bricolage Grotesque', sans-serif !important;
+        font-weight: 700 !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.08em !important;
+        font-size: 0.72rem !important;
     }
 
-    /* ── Download buttons ────────────────────────────────────────── */
-    .stDownloadButton > button {
-        background: var(--bg-card) !important;
-        border: 1px solid var(--glass-border) !important;
-        color: var(--text-primary) !important;
-        border-radius: 10px !important;
-        font-family: 'Material Symbols Rounded', 'DM Sans', sans-serif !important;
+    /* ── Buttons ─────────────────────────────────────────────────── */
+    .stDownloadButton > button,
+    .stButton > button {
+        background: var(--ink) !important;
+        border: 1px solid var(--ink) !important;
+        color: var(--paper-cool) !important;
+        border-radius: 2px !important;
+        font-family: 'Bricolage Grotesque', sans-serif !important;
         font-weight: 600 !important;
-        padding: 0.55rem 1.4rem !important;
-        transition: all 0.25s ease !important;
-        display: inline-flex !important;
-        align-items: center !important;
-        gap: 0.4rem !important;
+        font-size: 0.78rem !important;
+        letter-spacing: 0.12em !important;
+        text-transform: uppercase !important;
+        padding: 0.6rem 1.4rem !important;
+        transition: all 0.18s ease !important;
+        box-shadow: 3px 3px 0 var(--rule-faint) !important;
     }
-    .stDownloadButton > button:hover {
-        border-color: var(--accent-cyan) !important;
-        box-shadow: 0 0 20px var(--glow-cyan) !important;
-        transform: translateY(-1px) !important;
+    .stDownloadButton > button:hover,
+    .stButton > button:hover {
+        background: var(--accent) !important;
+        border-color: var(--accent) !important;
+        transform: translate(-1px, -1px) !important;
+        box-shadow: 4px 4px 0 var(--rule-soft) !important;
     }
 
-    /* ── Landing hero ────────────────────────────────────────────── */
-    .hero-container {
-        text-align: center;
-        padding: 8rem 2rem 4rem;
-        position: relative;
+    /* ── Form inputs (main area) ─────────────────────────────────── */
+    .stTextInput input, .stNumberInput input, .stTextArea textarea,
+    .stSelectbox > div > div, [data-baseweb="select"] > div {
+        background: var(--card) !important;
+        border: 1px solid var(--rule-soft) !important;
+        border-radius: 2px !important;
+        color: var(--ink) !important;
+        font-family: 'JetBrains Mono', monospace !important;
     }
-    .hero-container::before {
-        content: '';
-        position: absolute;
-        top: 50%; left: 50%;
-        transform: translate(-50%, -50%);
-        width: 400px; height: 400px;
-        background: radial-gradient(circle, rgba(34,211,238,0.08), transparent 70%);
-        border-radius: 50%;
-        pointer-events: none;
+    .stTextInput input:focus, .stNumberInput input:focus {
+        border-color: var(--ink) !important;
+        box-shadow: none !important;
     }
-    .hero-logo {
-        font-size: 3rem;
-        margin-bottom: 1rem;
-        display: inline-block;
-        background: linear-gradient(135deg, var(--accent-cyan), var(--accent-emerald));
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        font-weight: 700;
+
+    /* Radio / slider inks */
+    .stRadio label { color: var(--ink-soft) !important; }
+    .stSlider [data-baseweb="slider"] [role="slider"] {
+        background: var(--accent) !important;
+        border-color: var(--ink) !important;
     }
-    .hero-title {
-        font-family: 'DM Sans', sans-serif;
-        font-size: 2.4rem;
-        font-weight: 700;
-        color: var(--text-primary) !important;
-        margin-bottom: 0.6rem;
-        letter-spacing: -0.02em;
+
+    /* Metric (st.metric) */
+    [data-testid="stMetricValue"] {
+        font-family: 'Fraunces', serif !important;
+        font-variation-settings: 'opsz' 144 !important;
+        color: var(--ink) !important;
+        font-weight: 500 !important;
     }
-    .hero-subtitle {
-        font-size: 1.05rem;
-        color: var(--text-muted) !important;
-        max-width: 440px;
-        margin: 0 auto;
-        line-height: 1.6;
+    [data-testid="stMetricLabel"] {
+        font-family: 'Bricolage Grotesque', sans-serif !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.1em !important;
+        font-size: 0.7rem !important;
+        color: var(--ink-muted) !important;
     }
-    .hero-hint {
-        margin-top: 2.5rem;
-        display: inline-flex;
+    [data-testid="stMetricDelta"] { font-family: 'JetBrains Mono', monospace !important; }
+
+    /* Expander */
+    .streamlit-expanderHeader, [data-testid="stExpander"] summary {
+        background: var(--card) !important;
+        border: 1px solid var(--rule-soft) !important;
+        border-radius: 2px !important;
+        font-family: 'Bricolage Grotesque', sans-serif !important;
+        font-weight: 600 !important;
+        color: var(--ink) !important;
+    }
+    [data-testid="stExpander"] {
+        border: 1px solid var(--rule-soft) !important;
+        border-radius: 2px !important;
+        background: var(--card-tint) !important;
+    }
+
+    /* Alert blocks */
+    .stAlert, [data-testid="stNotificationContentInfo"] {
+        background: var(--card) !important;
+        border: 1px solid var(--ink) !important;
+        border-radius: 2px !important;
+        color: var(--ink) !important;
+    }
+
+    /* ── Chat bubbles ────────────────────────────────────────────── */
+    [data-testid="stChatMessage"] {
+        border-radius: 8px !important;
+        padding: 0.85rem 1.1rem 0.85rem 0.9rem !important;
+        margin-bottom: 0 !important;
+        border: 1px solid transparent !important;
+        box-shadow: none !important;
+    }
+
+    /* User bubble — indented right, blue-tinted */
+    [data-testid="stChatMessage"]:has([data-testid="chatAvatarIcon-user"]) {
+        background: rgba(30,58,138,0.055) !important;
+        border-color: rgba(30,58,138,0.16) !important;
+        border-left: 3px solid var(--cl-azione) !important;
+        margin-left: 2.5rem !important;
+        margin-right: 0 !important;
+    }
+
+    /* Assistant bubble — indented left, warm paper */
+    [data-testid="stChatMessage"]:has([data-testid="chatAvatarIcon-assistant"]) {
+        background: var(--card) !important;
+        border-color: var(--rule-soft) !important;
+        border-left: 3px solid var(--accent) !important;
+        margin-right: 2.5rem !important;
+        margin-left: 0 !important;
+    }
+
+    /* Avatar chips */
+    [data-testid="chatAvatarIcon-user"],
+    [data-testid="chatAvatarIcon-assistant"] {
+        width: 26px !important;
+        height: 26px !important;
+        min-width: 26px !important;
+        border-radius: 50% !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        font-size: 0.75rem !important;
+        font-weight: 700 !important;
+    }
+    [data-testid="chatAvatarIcon-user"] {
+        background: var(--cl-azione) !important;
+        color: #fff !important;
+    }
+    [data-testid="chatAvatarIcon-assistant"] {
+        background: var(--accent) !important;
+        color: #fff !important;
+    }
+
+    /* Turn separator */
+    .chat-turn-sep {
+        display: flex;
         align-items: center;
         gap: 0.5rem;
+        margin: 0.9rem 0 0.35rem;
+        font-size: 0.68rem;
         font-family: 'JetBrains Mono', monospace;
-        font-size: 0.8rem;
-        color: var(--text-muted) !important;
-        background: var(--bg-card);
-        border: 1px solid var(--glass-border);
-        border-radius: 8px;
-        padding: 0.5rem 1rem;
-    }
-    .hero-hint .arrow { color: var(--accent-cyan); }
-
-    /* ── Section divider ─────────────────────────────────────────── */
-    .section-label {
-        font-family: 'DM Sans', sans-serif;
-        font-size: 0.72rem;
-        font-weight: 600;
-        letter-spacing: 0.1em;
+        letter-spacing: 0.07em;
         text-transform: uppercase;
-        color: var(--text-muted) !important;
-        margin-bottom: 0.5rem;
-        padding-left: 0.2rem;
+        color: var(--ink-muted);
+    }
+    .chat-turn-sep::before {
+        content: '';
+        flex: 1;
+        height: 1px;
+        background: var(--rule-faint);
     }
 
-    /* ── Chromatic Language: class chip badges ───────────────────── */
+    [data-testid="stChatInput"] textarea {
+        background: var(--card) !important;
+        border: 1px solid rgba(26,24,21,0.35) !important;
+        border-radius: 6px !important;
+        color: var(--ink) !important;
+        font-family: 'Bricolage Grotesque', sans-serif !important;
+        font-size: 0.9rem !important;
+    }
+    [data-testid="stChatInput"] textarea:focus {
+        border-color: var(--cl-azione) !important;
+        box-shadow: 0 0 0 2px rgba(30,58,138,0.12) !important;
+    }
+
+    /* ── Hero — editorial masthead ──────────────────────────────── */
+    .hero-container {
+        text-align: center;
+        padding: 6rem 2rem 4rem;
+        position: relative;
+        max-width: 720px;
+        margin: 0 auto;
+    }
+    .hero-container::before {
+        content: 'EST. MMXXVI';
+        position: absolute;
+        top: 3rem; left: 50%;
+        transform: translateX(-50%);
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.7rem;
+        letter-spacing: 0.4em;
+        color: var(--ink-muted);
+    }
+    .hero-container::after {
+        content: '';
+        position: absolute;
+        top: 5rem; left: 50%;
+        transform: translateX(-50%);
+        width: 60%;
+        border-top: 1px solid var(--rule);
+    }
+    .hero-logo {
+        font-size: 3.4rem;
+        margin-bottom: 1.4rem;
+        margin-top: 1.6rem;
+        display: inline-block;
+        color: var(--accent);
+        font-weight: 700;
+    }
+    .hero-logo .mat {
+        background: none !important;
+        -webkit-text-fill-color: var(--accent) !important;
+        color: var(--accent) !important;
+    }
+    .hero-title {
+        font-family: 'Fraunces', serif !important;
+        font-variation-settings: 'opsz' 144, 'SOFT' 0, 'WONK' 1;
+        font-size: clamp(3.2rem, 7vw, 5rem);
+        font-weight: 400;
+        color: var(--ink) !important;
+        margin-bottom: 0.8rem;
+        letter-spacing: -0.04em;
+        line-height: 0.95;
+    }
+    .hero-subtitle {
+        font-family: 'Fraunces', serif;
+        font-variation-settings: 'opsz' 14;
+        font-size: 1.15rem;
+        font-style: italic;
+        color: var(--ink-soft) !important;
+        max-width: 480px;
+        margin: 1rem auto 0;
+        line-height: 1.5;
+    }
+    .hero-hint {
+        margin-top: 2.8rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.6rem;
+        font-family: 'Bricolage Grotesque', sans-serif;
+        font-size: 0.72rem;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--ink) !important;
+        background: transparent;
+        border: none;
+        border-top: 1px solid var(--rule);
+        border-bottom: 1px solid var(--rule);
+        padding: 0.6rem 1.4rem;
+        font-weight: 600;
+    }
+    .hero-hint .arrow { color: var(--accent); }
+
+    /* ── Section label — masthead rule ──────────────────────────── */
+    .section-label {
+        font-family: 'Bricolage Grotesque', sans-serif;
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: var(--ink) !important;
+        margin: 1rem 0 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid var(--ink);
+        display: flex;
+        align-items: baseline;
+        gap: 0.4rem;
+    }
+    .section-label::after {
+        content: '';
+        flex: 1;
+        border-bottom: 1px solid var(--rule-soft);
+        margin-bottom: 0.3em;
+        margin-left: 0.5rem;
+    }
+    .section-label .mat {
+        color: var(--accent) !important;
+        font-variation-settings: 'FILL' 0, 'wght' 500 !important;
+    }
+
+    /* ── Class chips ─────────────────────────────────────────────── */
     .cl-chip {
         display: inline-block;
         font-family: 'JetBrains Mono', monospace;
         font-size: 0.65rem;
         font-weight: 600;
-        letter-spacing: 0.06em;
-        padding: 0.15rem 0.5rem;
-        border-radius: 3px;
-        border-left: 2px solid currentColor;
+        letter-spacing: 0.08em;
+        padding: 0.18rem 0.55rem;
+        border-radius: 0;
+        border: 1px solid currentColor;
+        text-transform: uppercase;
     }
-    .cl-bond  { color: #22D3EE; background: rgba(34,211,238,0.08); }
-    .cl-etf   { color: #34D399; background: rgba(52,211,153,0.08); }
-    .cl-cert  { color: #A78BFA; background: rgba(167,139,250,0.08); }
-    .cl-comm  { color: #FBBF24; background: rgba(251,191,36,0.08); }
-    .cl-az    { color: #60A5FA; background: rgba(96,165,250,0.08); }
-    .cl-altro { color: #4A5568; background: rgba(74,85,104,0.08); }
+    .cl-bond  { color: var(--cl-bond);   background: var(--cl-bond-tint); }
+    .cl-etf   { color: var(--cl-etf);    background: var(--cl-etf-tint); }
+    .cl-cert  { color: var(--cl-cert);   background: var(--cl-cert-tint); }
+    .cl-comm  { color: var(--cl-comm);   background: var(--cl-comm-tint); }
+    .cl-az    { color: var(--cl-azione); background: var(--cl-azione-tint); }
+    .cl-altro { color: var(--cl-altro);  background: var(--cl-altro-tint); }
 
-    /* ── Chromatic accent on active tab ─────────────────────────── */
-    button[data-baseweb="tab"][aria-selected="true"] {
-        color: var(--cl-bond) !important;
-        border-bottom-color: var(--cl-bond) !important;
+    /* ── Plotly background canvas ───────────────────────────────── */
+    .js-plotly-plot, .plotly {
+        background: transparent !important;
     }
+
+    /* ── Code & inline mono ─────────────────────────────────────── */
+    code {
+        font-family: 'JetBrains Mono', monospace !important;
+        background: var(--card-tint) !important;
+        border: 1px solid var(--rule-faint) !important;
+        padding: 0.1rem 0.35rem !important;
+        border-radius: 2px !important;
+        color: var(--ink) !important;
+        font-size: 0.85em !important;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-track { background: var(--paper-warm); }
+    ::-webkit-scrollbar-thumb {
+        background: var(--ink-muted);
+        border: 2px solid var(--paper-warm);
+    }
+    ::-webkit-scrollbar-thumb:hover { background: var(--ink); }
+
+    /* Selection */
+    ::selection { background: var(--accent); color: var(--paper-cool); }
+
     </style>
     """)
 )
@@ -552,8 +877,51 @@ COMMODITY_KEYWORDS = [
 ]
 
 
-def classify_asset(name: str) -> str:
+# Suffissi/marker tipici di azioni quotate
+EQUITY_SUFFIX_KEYWORDS = [
+    " inc", " inc.", " corp", " corp.", " co.", " company",
+    " ltd", " ltd.", " limited", " plc",
+    " s.p.a", " spa", " s.p.a.", " s.r.l", " srl",
+    " ag", " se ", " se,", " se.", " a.g.",
+    " n.v", " n.v.", " nv,", " nv.",
+    " s.a", " s.a.", " sa,", " sa.",
+    " holding", " group", " gruppo",
+    " ord", " ordinary", " common stock", " adr", " gdr",
+    " cl a", " cl b", " class a", " class b", " cl.a", " cl.b",
+    " azione", " azioni", "azione ord",
+]
+
+# Marker per fondi tradizionali (non-ETF) — li mappiamo a ETF
+FUND_KEYWORDS = [
+    "sicav", "fcp", "fondo", " fund ", " funds ", "comparto",
+    "blackrock global funds", "pictet -", "pictet-", "fidelity funds",
+    "jpmorgan funds", "morgan stanley investment funds",
+    "schroder international", "carmignac", "anima ",
+]
+
+# Liquidità / cash positions
+CASH_KEYWORDS = [
+    "eur cash", "usd cash", "liquidità", "liquidita",
+    "saldo conto", "conto deposito", "cash account",
+    "deposit account", "interest account",
+]
+
+# ISIN country prefixes che suggeriscono azioni dirette quotate
+EQUITY_ISIN_PREFIXES = {
+    "US", "IT", "DE", "FR", "GB", "CH", "NL", "ES", "BE", "AT",
+    "PT", "FI", "DK", "SE", "NO", "JP", "HK", "CN", "AU", "CA",
+    "BR", "MX", "KR", "TW", "SG", "IL",
+}
+
+
+def classify_asset(name: str, isin: str | None = None) -> str:
     low = name.lower()
+    isin_norm = (isin or "").strip().upper()
+
+    # 0) Cash / liquidità
+    if any(k in low for k in CASH_KEYWORDS):
+        return "ALTRO"
+
     has_issuer = any(k in low for k in CERT_ISSUERS)
     has_cert_kw = any(k in low for k in CERT_KEYWORDS)
     # 1) Certificates
@@ -561,30 +929,49 @@ def classify_asset(name: str) -> str:
         return "CERTIFICATE"
     if has_issuer and not any(k in low for k in ETF_KEYWORDS + BOND_KEYWORDS):
         return "CERTIFICATE"
-    # 2) ETF/ETC/ETN — smista per sottostante
+
+    # 2) ETF/ETC/ETN + Fondi tradizionali — smistati per sottostante
     is_etf = any(k in low for k in ETF_KEYWORDS)
-    if is_etf:
-        # Commodity / Oro / Materie prime → COMMODITY
+    is_fund = any(k in low for k in FUND_KEYWORDS)
+    # ISIN che inizia per IE/LU/FR + presenza di suffissi tipo " r " o "acc"/"dist" → fondo
+    if not is_etf and not is_fund and isin_norm[:2] in ("IE", "LU"):
+        if any(k in low for k in (" acc", " dist", " r ", "(acc)", "(dist)", "ucits")):
+            is_fund = True
+
+    if is_etf or is_fund:
         is_commodity = any(k in low for k in COMMODITY_KEYWORDS)
         if is_commodity:
             return "COMMODITY"
-        # Monetari → BOND
         is_monetary = any(k in low for k in MONETARY_KEYWORDS)
         if is_monetary:
             return "BOND"
-        # Obbligazionario sottostante → BOND
         is_bond_underlying = any(k in low for k in BOND_UNDERLYING_KEYWORDS + BOND_KEYWORDS)
         if is_bond_underlying:
             return "BOND"
         return "ETF"
-    # 3) Bonds diretti
+
+    # 3) Bonds diretti — keyword o pattern "anno + %"
     if any(k in low for k in BOND_KEYWORDS):
         return "BOND"
     if re.search(r"\b20\d{2}\b", low) and "%" in low:
         return "BOND"
-    # 4) Azione
-    if "azione" in low:
+    # ISIN che inizia per "IT000" + nome senza marker equity → probabile BTP/obbligazione
+    if isin_norm.startswith("IT000") and not any(s in low for s in EQUITY_SUFFIX_KEYWORDS):
+        # Se contiene cedola/maturity/scadenza tipica
+        if re.search(r"\b\d{1,2}[\.,]?\d{0,3}\s*%", low) or re.search(r"\b20\d{2}\b", low):
+            return "BOND"
+
+    # 4) Azione — suffissi societari, ticker noti, ISIN azionario
+    if any(k in low for k in EQUITY_SUFFIX_KEYWORDS):
         return "AZIONE"
+    # Ticker matching word-boundary contro SECTOR_MAP (azioni dirette note)
+    for ticker in SECTOR_MAP.keys():
+        if re.search(r"\b" + re.escape(ticker) + r"\b", low):
+            return "AZIONE"
+    # ISIN azionario fallback
+    if isin_norm[:2] in EQUITY_ISIN_PREFIXES and not isin_norm.startswith("IT000"):
+        return "AZIONE"
+
     return "ALTRO"
 
 
@@ -622,7 +1009,11 @@ def classify_subtype(name: str, classe: str) -> str:
             return "Gov. Euro"
         return "Obbligazionario Altro"
 
-    if classe in ("ETF", "AZIONE"):
+    if classe == "AZIONE":
+        # Le azioni dirette vanno tutte in "Azione Singola"
+        return "Azione Singola"
+
+    if classe == "ETF":
         # Geographic
         if any(k in low for k in ("emerging", "em imi", "em ")):
             return "Azionario Emergenti"
@@ -644,8 +1035,6 @@ def classify_subtype(name: str, classe: str) -> str:
             return "Azionario Giappone"
         if "divid" in low or "div." in low:
             return "Azionario Dividendo"
-        if "azione" in low:
-            return "Azione Singola"
         return "Azionario Altro"
 
     if classe == "CERTIFICATE":
@@ -890,7 +1279,13 @@ def process_portfolio(df: pd.DataFrame) -> pd.DataFrame:
         elif "Prezzo Mercato" in df.columns and not df["Quantità"].isna().all():
             pm = df["Prezzo Mercato"].apply(clean_numeric)
             df["Controvalore"] = pm * df["Quantità"]
-    df["Classe"] = df["Nome"].fillna("").astype(str).apply(classify_asset)
+    df["Classe"] = df.apply(
+        lambda r: classify_asset(
+            str(r.get("Nome") or ""),
+            str(r.get("ISIN") or "") if r.get("ISIN") is not None else None,
+        ),
+        axis=1,
+    )
     settore_col = "Settore" if "Settore" in df.columns else None
     df["Settore"] = df.apply(
         lambda r: infer_sector(
@@ -1124,42 +1519,54 @@ def generate_fa_report(df: pd.DataFrame, metrics: dict) -> dict:
     class_split = df.groupby("Classe")["Controvalore"].sum().sort_values(ascending=False)
     alloc = {cls: round(v / total * 100, 1) for cls, v in class_split.items() if total > 0}
 
-    bond_pct  = metrics.get("bond_pct", 0)
-    eq_pct    = metrics.get("eq_pct", 0)
-    other_pct = metrics.get("other_pct", 0)
+    bond_pct   = metrics.get("bond_pct", 0)
+    eq_pct     = metrics.get("eq_pct", 0)
+    crypto_pct = alloc.get("CRYPTO", 0)
+    other_pct  = metrics.get("other_pct", 0)
 
-    if bond_pct > 60:
-        alloc_profile = ("Difensivo", "#22D3EE",
+    if crypto_pct > 30:
+        alloc_profile = ("Speculativo", "#C9893A",
+            f"Esposizione crypto molto elevata ({crypto_pct:.1f}%). "
+            "Asset ad altissima volatilità e correlazione negativa nelle fasi di risk-off; "
+            "adatto solo a investitori con propensione al rischio molto alta e orizzonte lungo.")
+    elif crypto_pct > 15:
+        alloc_profile = ("Ad alto rischio", "#C9893A",
+            f"Componente crypto significativa ({crypto_pct:.1f}%) che aumenta la volatilità complessiva del portafoglio. "
+            f"Restante allocazione: obbligazionario {bond_pct:.1f}%, azionario/ETF {eq_pct:.1f}%.")
+    elif bond_pct > 60:
+        alloc_profile = ("Difensivo", "#1F5F5B",
             f"Il portafoglio è prevalentemente obbligazionario ({bond_pct:.1f}%). "
             "Questo posizionamento riduce la volatilità ma limita il potenziale di rendimento a lungo termine.")
     elif eq_pct > 60:
-        alloc_profile = ("Aggressivo", "#34D399",
+        alloc_profile = ("Aggressivo", "#3B5A36",
             f"Il portafoglio è prevalentemente azionario/ETF ({eq_pct:.1f}%). "
             "Esposizione elevata alla volatilità di mercato; adatto a orizzonti temporali lunghi.")
     elif 35 <= bond_pct <= 65 and 35 <= eq_pct <= 65:
-        alloc_profile = ("Bilanciato", "#A78BFA",
+        alloc_profile = ("Bilanciato", "#6B2E5F",
             f"Allocazione equilibrata tra obbligazionario ({bond_pct:.1f}%) e azionario ({eq_pct:.1f}%). "
             "Profilo coerente con obiettivi di crescita moderata e controllo del rischio.")
     else:
-        alloc_profile = ("Misto", "#FBBF24",
-            f"Composizione diversificata: obbligazionario {bond_pct:.1f}%, azionario {eq_pct:.1f}%, altro {other_pct:.1f}%.")
+        crypto_note = f", crypto {crypto_pct:.1f}%" if crypto_pct > 0 else ""
+        alloc_profile = ("Misto", "#B45309",
+            f"Composizione diversificata: obbligazionario {bond_pct:.1f}%, azionario {eq_pct:.1f}%"
+            f"{crypto_note}, altro {other_pct:.1f}%.")
 
     # ── 2. Concentrazione (HHI benchmark dalla financial-analyst skill) ────────
     # HHI < 0.01 = molto diversificato, 0.01–0.15 = moderato, > 0.15 = concentrato
     if hhi < 0.06:
-        hhi_label = ("Eccellente", "#34D399",
+        hhi_label = ("Eccellente", "#3B5A36",
             f"HHI {hhi:.4f} — portafoglio ben distribuito. "
             "Il rischio è suddiviso su molte posizioni con peso equilibrato.")
     elif hhi < 0.10:
-        hhi_label = ("Buono", "#34D399",
+        hhi_label = ("Buono", "#3B5A36",
             f"HHI {hhi:.4f} — diversificazione soddisfacente. "
             "Qualche posizione di maggior peso, ma entro soglie accettabili.")
     elif hhi < 0.15:
-        hhi_label = ("Accettabile", "#FBBF24",
+        hhi_label = ("Accettabile", "#B45309",
             f"HHI {hhi:.4f} — concentrazione moderata. "
             "Alcune posizioni pesano significativamente: monitorare il rischio single-name.")
     else:
-        hhi_label = ("Concentrato", "#FB7185",
+        hhi_label = ("Concentrato", "#C9893A",
             f"HHI {hhi:.4f} — portafoglio concentrato. "
             "Poche posizioni dominano il valore: alto rischio specifico.")
 
@@ -1198,26 +1605,38 @@ def generate_fa_report(df: pd.DataFrame, metrics: dict) -> dict:
     # ── 6. Raccomandazioni operative ──────────────────────────────────────────
     recommendations = []
     if hhi >= 0.15:
-        recommendations.append(("Alta priorità", "#FB7185",
+        recommendations.append(("Alta priorità", "#C9893A",
             "Ridurre la concentrazione aumentando il numero di posizioni o ribilanciando le più pesanti."))
     if metrics.get("max_weight", 0) > 25:
         heaviest = df_sorted.iloc[0]["Nome"] if len(df_sorted) > 0 else "N/A"
-        recommendations.append(("Alta priorità", "#FB7185",
+        recommendations.append(("Alta priorità", "#C9893A",
             f'"{heaviest[:40]}" pesa il {metrics.get("max_weight",0):.1f}%: considerare un parziale alleggerimento.'))
     if bond_pct > 70:
-        recommendations.append(("Moderata", "#FBBF24",
+        recommendations.append(("Moderata", "#B45309",
             "Allocazione obbligazionaria molto elevata: valutare l'aggiunta di componente azionaria per il lungo periodo."))
     if eq_pct > 80:
-        recommendations.append(("Moderata", "#FBBF24",
+        recommendations.append(("Moderata", "#B45309",
             "Esposizione azionaria molto elevata: una quota obbligazionaria migliorerebbe la resilienza in fase di correzione."))
     if non_classified_geo > 30:
-        recommendations.append(("Bassa priorità", "#4A5568",
+        recommendations.append(("Bassa priorità", "#A09A8E",
             "Verificare e completare la classificazione geografica delle posizioni non classificate."))
     if n_sub <= 2:
-        recommendations.append(("Moderata", "#FBBF24",
+        recommendations.append(("Moderata", "#B45309",
             "Ampliare la diversificazione per sottocategoria aggiungendo strumenti di classi diverse."))
+    if crypto_pct > 30:
+        recommendations.append(("Alta priorità", "#C9893A",
+            f"Esposizione crypto molto elevata ({crypto_pct:.1f}%): l'asset class è soggetta a drawdown del 70-90% in fasi di bear market. "
+            "Valutare una riduzione significativa per proteggere il capitale."))
+    elif crypto_pct > 15:
+        recommendations.append(("Moderata", "#B45309",
+            f"Le criptovalute pesano il {crypto_pct:.1f}%: monitorare attivamente la correlazione con l'equity "
+            "nelle fasi di avversione al rischio e impostare livelli di uscita preventivi."))
+    elif crypto_pct > 5:
+        recommendations.append(("Bassa priorità", "#A09A8E",
+            f"Componente crypto al {crypto_pct:.1f}%: allocazione satellite contenuta. "
+            "Verificare periodicamente che non superi la soglia di tolleranza al rischio."))
     if not recommendations:
-        recommendations.append(("Nessuna azione urgente", "#34D399",
+        recommendations.append(("Nessuna azione urgente", "#3B5A36",
             "Il portafoglio presenta un profilo di rischio equilibrato. Mantenere il monitoraggio periodico."))
 
     return {
@@ -1234,6 +1653,7 @@ def generate_fa_report(df: pd.DataFrame, metrics: dict) -> dict:
         "recommendations": recommendations,
         "bond_pct": bond_pct,
         "eq_pct": eq_pct,
+        "crypto_pct": crypto_pct,
         "other_pct": other_pct,
         "total": total,
         "n": n,
@@ -1260,32 +1680,33 @@ def compute_risk_metrics(df: pd.DataFrame) -> dict:
     class_split = df.groupby("Classe")["Controvalore"].sum() / total * 100
     bond_pct = class_split.get("BOND", 0)
     eq_pct = class_split.get("ETF", 0) + class_split.get("AZIONE", 0)
-    other_pct = 100 - bond_pct - eq_pct
+    crypto_pct = class_split.get("CRYPTO", 0)
+    other_pct = max(0.0, 100 - bond_pct - eq_pct - crypto_pct)
     # Single-name risk
     max_weight = w.max() * 100
     # Diversification rating (based on financial-analyst benchmarks)
     if hhi < 0.06:
         div_rating = "Eccellente"
-        div_color = "#34D399"
+        div_color = "#3B5A36"
     elif hhi < 0.10:
         div_rating = "Buona"
-        div_color = "#34D399"
+        div_color = "#3B5A36"
     elif hhi < 0.15:
         div_rating = "Accettabile"
-        div_color = "#FBBF24"
+        div_color = "#B45309"
     else:
         div_rating = "Concentrato"
-        div_color = "#FB7185"
+        div_color = "#C9893A"
     # Concentration rating
     if max_weight > 25:
         conc_rating = "Alto Rischio"
-        conc_color = "#FB7185"
+        conc_color = "#C9893A"
     elif max_weight > 15:
         conc_rating = "Moderato"
-        conc_color = "#FBBF24"
+        conc_color = "#B45309"
     else:
         conc_rating = "Basso"
-        conc_color = "#34D399"
+        conc_color = "#3B5A36"
 
     return {
         "hhi": round(hhi, 4),
@@ -1293,6 +1714,7 @@ def compute_risk_metrics(df: pd.DataFrame) -> dict:
         "n_subtypes": int(n_subtypes),
         "bond_pct": round(bond_pct, 1),
         "eq_pct": round(eq_pct, 1),
+        "crypto_pct": round(crypto_pct, 1),
         "other_pct": round(other_pct, 1),
         "max_weight": round(max_weight, 1),
         "diversification_rating": div_rating,
@@ -1344,6 +1766,22 @@ def generate_insights(df: pd.DataFrame, metrics: dict) -> list[str]:
         insights.append(
             f"Rischio single-name: \"{heaviest}\" pesa il {max_w:.1f}% del portafoglio."
         )
+    # Crypto exposure
+    crypto_pct = metrics.get("crypto_pct", 0)
+    if crypto_pct > 25:
+        insights.append(
+            f"Esposizione crypto molto elevata ({crypto_pct:.1f}%): asset ad altissima volatilità, "
+            "fortemente correlati nelle fasi di risk-off. Valutare una riduzione."
+        )
+    elif crypto_pct > 10:
+        insights.append(
+            f"Componente crypto al {crypto_pct:.1f}%: monitorare la correlazione con equity "
+            "in fase di avversione al rischio."
+        )
+    elif 0 < crypto_pct <= 10:
+        insights.append(
+            f"Piccola allocazione crypto ({crypto_pct:.1f}%): apporto speculativo contenuto."
+        )
     # Top-5 concentration
     top5 = metrics.get("top5_pct", 0)
     if top5 > 70:
@@ -1365,51 +1803,154 @@ def generate_insights(df: pd.DataFrame, metrics: dict) -> list[str]:
 
 # ── Plotly theme ─────────────────────────────────────────────────────────────
 
-# Chromatic Language: palette semantica per classe asset
+# Chromatic Language: palette semantica per classe asset (Almanac — paper-friendly)
 CHART_PALETTE = [
-    "#22D3EE",  # BOND       — cerulean
-    "#34D399",  # ETF        — emerald
-    "#A78BFA",  # CERTIFICATE— violet
-    "#FBBF24",  # COMMODITY  — amber
-    "#60A5FA",  # AZIONE     — blue
-    "#FB7185",  # rose
-    "#F472B6",  # pink
-    "#2DD4BF",  # teal
+    "#1F5F5B",  # BOND       — teal
+    "#3B5A36",  # ETF        — forest
+    "#6B2E5F",  # CERTIFICATE— plum
+    "#B45309",  # COMMODITY  — ochre
+    "#1E3A8A",  # AZIONE     — navy
+    "#C9893A",  # CRYPTO     — sienna
+    "#9E2A2B",  # accent crimson
+    "#6B6258",  # ALTRO      — stone
 ]
 
 PLOTLY_LAYOUT = dict(
     paper_bgcolor="rgba(0,0,0,0)",
     plot_bgcolor="rgba(0,0,0,0)",
-    font=dict(family="DM Sans, sans-serif", color="#7A8599", size=12),
-    margin=dict(t=48, b=24, l=24, r=24),
-    title_font=dict(size=14, color="#E8ECF1"),
+    font=dict(family="Bricolage Grotesque, Helvetica Neue, sans-serif", color="#3D362D", size=12),
+    margin=dict(t=56, b=28, l=28, r=28),
+    title_font=dict(family="Fraunces, serif", size=15, color="#1A1815"),
     legend=dict(
-        font=dict(size=11, color="#7A8599"),
+        font=dict(family="Bricolage Grotesque, sans-serif", size=11, color="#6B6258"),
         bgcolor="rgba(0,0,0,0)",
         borderwidth=0,
     ),
 )
 
 
+# ── Crypto storage (persistenza locale) ─────────────────────────────────────
+
+CRYPTO_FILE = Path(__file__).parent / "crypto.json"
+
+
+def load_crypto() -> list[dict]:
+    if not CRYPTO_FILE.exists():
+        return []
+    try:
+        with CRYPTO_FILE.open("r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, list) else []
+    except Exception:
+        return []
+
+
+def save_crypto(rows: list[dict]) -> None:
+    with CRYPTO_FILE.open("w", encoding="utf-8") as f:
+        json.dump(rows, f, ensure_ascii=False, indent=2)
+
+
+UPLOAD_CACHE_DIR = Path(__file__).parent / ".cache" / "uploads"
+CHAT_FILE = Path(__file__).parent / ".cache" / "chat_history.json"
+
+
+def save_uploads(files) -> None:
+    UPLOAD_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    for old in UPLOAD_CACHE_DIR.iterdir():
+        if old.is_file():
+            old.unlink()
+    for uf in files:
+        uf.seek(0)
+        (UPLOAD_CACHE_DIR / uf.name).write_bytes(uf.read())
+        uf.seek(0)
+
+
+def load_cached_uploads() -> list:
+    if not UPLOAD_CACHE_DIR.exists():
+        return []
+    out = []
+    for p in sorted(UPLOAD_CACHE_DIR.iterdir()):
+        if not p.is_file():
+            continue
+        bio = io.BytesIO(p.read_bytes())
+        bio.name = p.name
+        out.append(bio)
+    return out
+
+
+def clear_uploads() -> None:
+    if not UPLOAD_CACHE_DIR.exists():
+        return
+    for f in UPLOAD_CACHE_DIR.iterdir():
+        if f.is_file():
+            f.unlink()
+
+
+def load_chat() -> list[dict]:
+    if not CHAT_FILE.exists():
+        return []
+    try:
+        with CHAT_FILE.open("r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, list) else []
+    except Exception:
+        return []
+
+
+def save_chat(history: list[dict]) -> None:
+    CHAT_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with CHAT_FILE.open("w", encoding="utf-8") as f:
+        json.dump(history, f, ensure_ascii=False, indent=2)
+
+
+def crypto_rows_to_df(rows: list[dict]) -> pd.DataFrame:
+    """Trasforma le crypto in righe coerenti con il portafoglio (Classe=CRYPTO)."""
+    if not rows:
+        return pd.DataFrame()
+    out = []
+    for r in rows:
+        qty = float(r.get("quantita") or 0)
+        price = float(r.get("prezzo") or 0)
+        ctv = qty * price
+        nome = (r.get("nome") or "").strip()
+        out.append({
+            "Nome": nome,
+            "ISIN": r.get("ticker") or "",
+            "Quantità": qty,
+            "Prezzo Acquisto": None,
+            "Controvalore": ctv,
+            "Classe": "CRYPTO",
+            "Settore": "Crypto",
+            "Sottotipo": "Crypto",
+            "Geografia": "Globale",
+            "Fonte": "Crypto manuale",
+        })
+    return pd.DataFrame(out)
+
+
 # ── Sidebar ──────────────────────────────────────────────────────────────────
+
+# Inizializza lo stato delle crypto (caricato da disco al primo avvio)
+if "crypto_rows" not in st.session_state:
+    st.session_state.crypto_rows = load_crypto()
 
 with st.sidebar:
     st.markdown(
         """
-        <div style="padding: 0.5rem 0 1rem; display:flex; align-items:center; gap:0.5rem;">
-            <span class="mat" style="font-size:1.6rem; background: linear-gradient(135deg, #22D3EE, #34D399);
-                -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-                font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24;">
-                monitoring
-            </span>
-            <span style="font-family: 'DM Sans', sans-serif; font-weight: 700; font-size: 1.1rem;
-                color: #E8ECF1; letter-spacing: -0.01em;">Portfolio Analyzer</span>
+        <div style="padding: 0.6rem 0 1.2rem; display:flex; align-items:baseline; gap:0.6rem;
+            border-bottom: 1px solid #1A1815; margin-bottom: 1rem;">
+            <span style="font-family:'Fraunces', serif; font-weight:500; font-size:1.45rem;
+                color:#9E2A2B; letter-spacing:-0.04em; font-style:italic; line-height:1;
+                font-variation-settings:'opsz' 144;">Almanac</span>
+            <span style="font-family:'JetBrains Mono', monospace; font-size:0.62rem;
+                letter-spacing:0.2em; color:#A09A8E; text-transform:uppercase;
+                margin-left:auto;">Vol. I</span>
         </div>
         """,
         unsafe_allow_html=True,
     )
     st.markdown(
-        '<p style="font-size:0.82rem; color:#4A5568 !important; margin-bottom:1rem;">Carica uno o più file CSV o Excel per analizzare il portafoglio in modo unificato.</p>',
+        '<p style="font-size:0.82rem; color:#A09A8E !important; margin-bottom:1rem;">Carica uno o più file CSV o Excel per analizzare il portafoglio in modo unificato.</p>',
         unsafe_allow_html=True,
     )
     uploaded_files = st.file_uploader(
@@ -1419,15 +1960,128 @@ with st.sidebar:
         help="CSV, Excel (.xlsx/.xls) — puoi caricare più file contemporaneamente",
     )
     if uploaded_files:
+        save_uploads(uploaded_files)
+    else:
+        cached = load_cached_uploads()
+        if cached:
+            uploaded_files = cached
+
+    if uploaded_files:
         for uf in uploaded_files:
             st.markdown(
-                f'<p style="font-family:JetBrains Mono,monospace; font-size:0.72rem; color:#34D399 !important; margin:0.15rem 0;">'
+                f'<p style="font-family:JetBrains Mono,monospace; font-size:0.72rem; color:#3B5A36 !important; margin:0.15rem 0;">'
                 f'✓ {uf.name}</p>',
                 unsafe_allow_html=True,
             )
+        if st.button("Rimuovi file caricati", use_container_width=True, key="clear_uploads_btn"):
+            clear_uploads()
+            st.rerun()
+
+    # ── Crypto manuali ─────────────────────────────────────────────────────
     st.markdown("---")
     st.markdown(
-        '<p style="font-family: JetBrains Mono, monospace; font-size:0.7rem; color:#4A5568 !important;">v2.0 · Streamlit + Plotly</p>',
+        '<div style="display:flex; align-items:center; gap:0.4rem; margin-bottom:0.4rem;">'
+        '<span class="mat" style="font-size:1.1rem; color:#C9893A; '
+        "font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24;\">currency_bitcoin</span>"
+        '<span style="font-family:Bricolage Grotesque,sans-serif; font-weight:700; font-size:0.85rem; color:#1A1815; text-transform:uppercase; letter-spacing:0.08em;">'
+        "Crypto manuali</span></div>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        '<p style="font-size:0.75rem; color:#A09A8E !important; margin-bottom:0.6rem;">'
+        "Aggiungi posizioni in criptovalute. Salvate in <code>crypto.json</code>.</p>",
+        unsafe_allow_html=True,
+    )
+
+    with st.form("crypto_add_form", clear_on_submit=True):
+        c_nome = st.text_input("Nome", placeholder="Bitcoin, Ethereum, …")
+        c_ticker = st.text_input("Ticker (opz.)", placeholder="BTC, ETH, …")
+        c_qty = st.number_input("Quantità", min_value=0.0, value=0.0, step=0.0001, format="%.8f")
+        c_price = st.number_input("Prezzo unitario (€)", min_value=0.0, value=0.0, step=1.0, format="%.2f")
+        submitted = st.form_submit_button("Aggiungi", use_container_width=True)
+        if submitted:
+            if not c_nome.strip():
+                st.warning("Inserisci un nome.")
+            elif c_qty <= 0 or c_price <= 0:
+                st.warning("Quantità e prezzo devono essere > 0.")
+            else:
+                st.session_state.crypto_rows.append({
+                    "nome": c_nome.strip(),
+                    "ticker": c_ticker.strip().upper(),
+                    "quantita": float(c_qty),
+                    "prezzo": float(c_price),
+                })
+                save_crypto(st.session_state.crypto_rows)
+                st.rerun()
+
+    if st.session_state.crypto_rows:
+        st.markdown(
+            '<p style="font-size:0.72rem; color:#6B6258 !important; margin:0.6rem 0 0.3rem; '
+            'text-transform:uppercase; letter-spacing:0.06em;">In portafoglio</p>',
+            unsafe_allow_html=True,
+        )
+        for idx, r in enumerate(list(st.session_state.crypto_rows)):
+            ctv = float(r.get("quantita") or 0) * float(r.get("prezzo") or 0)
+            label = (
+                f"{r.get('nome','—')}"
+                f"{(' · ' + r.get('ticker','')) if r.get('ticker') else ''}"
+                f"  ·  € {ctv:,.2f}"
+            )
+            with st.expander(label, expanded=False):
+                with st.form(f"crypto_edit_form_{idx}", clear_on_submit=False):
+                    e_nome = st.text_input(
+                        "Nome", value=str(r.get("nome", "")), key=f"e_nome_{idx}"
+                    )
+                    e_ticker = st.text_input(
+                        "Ticker", value=str(r.get("ticker", "")), key=f"e_tk_{idx}"
+                    )
+                    e_qty = st.number_input(
+                        "Quantità",
+                        min_value=0.0,
+                        value=float(r.get("quantita") or 0.0),
+                        step=0.0001,
+                        format="%.8f",
+                        key=f"e_qty_{idx}",
+                    )
+                    e_price = st.number_input(
+                        "Prezzo unitario (€)",
+                        min_value=0.0,
+                        value=float(r.get("prezzo") or 0.0),
+                        step=1.0,
+                        format="%.2f",
+                        key=f"e_pr_{idx}",
+                    )
+                    bcols = st.columns([1, 1])
+                    with bcols[0]:
+                        save_clicked = st.form_submit_button(
+                            "Salva", use_container_width=True
+                        )
+                    with bcols[1]:
+                        del_clicked = st.form_submit_button(
+                            "Rimuovi", use_container_width=True
+                        )
+                    if save_clicked:
+                        if not e_nome.strip():
+                            st.warning("Inserisci un nome.")
+                        elif e_qty <= 0 or e_price <= 0:
+                            st.warning("Quantità e prezzo devono essere > 0.")
+                        else:
+                            st.session_state.crypto_rows[idx] = {
+                                "nome": e_nome.strip(),
+                                "ticker": e_ticker.strip().upper(),
+                                "quantita": float(e_qty),
+                                "prezzo": float(e_price),
+                            }
+                            save_crypto(st.session_state.crypto_rows)
+                            st.rerun()
+                    if del_clicked:
+                        st.session_state.crypto_rows.pop(idx)
+                        save_crypto(st.session_state.crypto_rows)
+                        st.rerun()
+
+    st.markdown("---")
+    st.markdown(
+        '<p style="font-family: JetBrains Mono, monospace; font-size:0.7rem; color:#A09A8E !important;">v2.1 · Streamlit + Plotly + Claude</p>',
         unsafe_allow_html=True,
     )
 
@@ -1438,20 +2092,20 @@ if not uploaded_files:
         """
         <div class="hero-container">
             <div class="hero-logo">
-                <span class="mat" style="font-size:3rem; background: linear-gradient(135deg, #22D3EE, #34D399);
-                    -webkit-background-clip:text; -webkit-text-fill-color:transparent;
-                    font-variation-settings:'FILL' 1,'wght' 300,'GRAD' 0,'opsz' 48;">
-                    monitoring
+                <span class="mat" style="font-size:2.6rem;
+                    font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 48;">
+                    insights
                 </span>
             </div>
-            <div class="hero-title">Portfolio Analyzer</div>
+            <div class="hero-title">The Portfolio<br><em>Almanac</em></div>
             <div class="hero-subtitle">
-                Trascina uno o più file CSV o Excel nella sidebar per visualizzare
-                allocazione, composizione e metriche del tuo portafoglio unificato.
+                Un'analisi tipografica del tuo capitale —<br>
+                allocazione, composizione, esposizione e rischio,<br>
+                composti come pagine di un almanacco finanziario.
             </div>
             <div class="hero-hint">
-                <span class="mat arrow" style="font-size:1rem;">arrow_back</span>
-                Carica uno o più file per iniziare
+                <span class="mat arrow" style="font-size:0.9rem;">west</span>
+                Carica un file per iniziare
             </div>
         </div>
         """,
@@ -1590,6 +2244,13 @@ if "_fonte" in df.columns:
     df["Fonte"] = df["_fonte"]
     df = df.drop(columns=["_fonte"])
 
+# ── Merge crypto manuali nel portafoglio ─────────────────────────────────────
+crypto_df = crypto_rows_to_df(st.session_state.get("crypto_rows", []))
+if not crypto_df.empty:
+    df = pd.concat([df, crypto_df], ignore_index=True)
+    total_after = df["Controvalore"].sum()
+    df["Peso %"] = (df["Controvalore"] / total_after * 100).round(2) if total_after > 0 else 0
+
 # ── KPI row ──────────────────────────────────────────────────────────────────
 
 total_value = df["Controvalore"].sum()
@@ -1609,34 +2270,34 @@ k1, k2, k3 = st.columns(3)
 with k1:
     st.markdown(
         f"""<div class="glass-card kpi-card kpi-bond">
-            <div class="kpi-icon kpi-icon-value" style="background:rgba(34,211,238,0.1);">
-                <span class="mat" style="color:#22D3EE;font-variation-settings:'FILL' 1,'wght' 300,'GRAD' 0,'opsz' 24;">account_balance_wallet</span>
+            <div class="kpi-icon kpi-icon-value" style="background:rgba(31,95,91,0.07);">
+                <span class="mat" style="color:#1F5F5B;font-variation-settings:'FILL' 1,'wght' 300,'GRAD' 0,'opsz' 24;">account_balance_wallet</span>
             </div>
-            <div class="kpi-label" style="color:#22D3EE !important;">Controvalore Totale</div>
-            <div class="kpi-value" style="color:#22D3EE !important;">€ {total_value:,.2f}</div>
+            <div class="kpi-label" style="color:#1F5F5B !important;">Controvalore Totale</div>
+            <div class="kpi-value" style="color:#1F5F5B !important;">€ {total_value:,.2f}</div>
         </div>""",
         unsafe_allow_html=True,
     )
 with k2:
     st.markdown(
         f"""<div class="glass-card kpi-card kpi-etf">
-            <div class="kpi-icon kpi-icon-count" style="background:rgba(52,211,153,0.1);">
-                <span class="mat" style="color:#34D399;font-variation-settings:'FILL' 1,'wght' 300,'GRAD' 0,'opsz' 24;">dataset</span>
+            <div class="kpi-icon kpi-icon-count" style="background:rgba(59,90,54,0.07);">
+                <span class="mat" style="color:#3B5A36;font-variation-settings:'FILL' 1,'wght' 300,'GRAD' 0,'opsz' 24;">dataset</span>
             </div>
-            <div class="kpi-label" style="color:#34D399 !important;">Numero Titoli</div>
-            <div class="kpi-value" style="color:#34D399 !important;">{n_assets}</div>
+            <div class="kpi-label" style="color:#3B5A36 !important;">Numero Titoli</div>
+            <div class="kpi-value" style="color:#3B5A36 !important;">{n_assets}</div>
         </div>""",
         unsafe_allow_html=True,
     )
 with k3:
     st.markdown(
         f"""<div class="glass-card kpi-card kpi-cert">
-            <div class="kpi-icon kpi-icon-top" style="background:rgba(167,139,250,0.1);">
-                <span class="mat" style="color:#A78BFA;font-variation-settings:'FILL' 1,'wght' 300,'GRAD' 0,'opsz' 24;">trophy</span>
+            <div class="kpi-icon kpi-icon-top" style="background:rgba(107,46,95,0.07);">
+                <span class="mat" style="color:#6B2E5F;font-variation-settings:'FILL' 1,'wght' 300,'GRAD' 0,'opsz' 24;">trophy</span>
             </div>
-            <div class="kpi-label" style="color:#A78BFA !important;">Asset Più Pesante</div>
-            <div class="kpi-value" style="font-size:0.95rem; line-height:1.4; color:#A78BFA !important;">{heaviest_short}</div>
-            <div class="kpi-sub" style="color:#A78BFA;">{heaviest_pct:.1f}%</div>
+            <div class="kpi-label" style="color:#6B2E5F !important;">Asset Più Pesante</div>
+            <div class="kpi-value" style="font-size:0.95rem; line-height:1.4; color:#6B2E5F !important;">{heaviest_short}</div>
+            <div class="kpi-sub" style="color:#6B2E5F;">{heaviest_pct:.1f}%</div>
         </div>""",
         unsafe_allow_html=True,
     )
@@ -1644,12 +2305,13 @@ with k3:
 # ── Chromatic allocation bar ─────────────────────────────────────────────────
 
 CLASS_COLORS = {
-    "BOND":        ("#22D3EE", "rgba(34,211,238,0.18)"),
-    "ETF":         ("#34D399", "rgba(52,211,153,0.18)"),
-    "CERTIFICATE": ("#A78BFA", "rgba(167,139,250,0.18)"),
-    "COMMODITY":   ("#FBBF24", "rgba(251,191,36,0.18)"),
-    "AZIONE":      ("#60A5FA", "rgba(96,165,250,0.18)"),
-    "ALTRO":       ("#4A5568", "rgba(74,85,104,0.18)"),
+    "BOND":        ("#1F5F5B", "rgba(31,95,91,0.16)"),
+    "ETF":         ("#3B5A36", "rgba(59,90,54,0.16)"),
+    "CERTIFICATE": ("#6B2E5F", "rgba(107,46,95,0.16)"),
+    "COMMODITY":   ("#B45309", "rgba(180,83,9,0.16)"),
+    "AZIONE":      ("#1E3A8A", "rgba(30,58,138,0.16)"),
+    "CRYPTO":      ("#C9893A", "rgba(201,137,58,0.16)"),
+    "ALTRO":       ("#6B6258", "rgba(107,98,88,0.16)"),
 }
 
 if has_values:
@@ -1658,7 +2320,7 @@ if has_values:
     segments = []
     for cls, val in class_totals.items():
         pct = val / total_ctv * 100
-        col_l, col_f = CLASS_COLORS.get(cls, ("#4A5568", "rgba(74,85,104,0.18)"))
+        col_l, col_f = CLASS_COLORS.get(cls, ("#A09A8E", "rgba(74,85,104,0.18)"))
         segments.append((cls, pct, col_l, col_f))
     segments.sort(key=lambda x: -x[1])
 
@@ -1689,12 +2351,12 @@ if portfolio_insights:
     st.markdown(
         f"""<div class="glass-card" style="padding:1rem 1.4rem; margin-bottom:1rem;">
             <div style="display:flex; align-items:center; gap:0.4rem; margin-bottom:0.6rem;">
-                <span class="mat" style="font-size:1.1rem; color:#A78BFA;
+                <span class="mat" style="font-size:1.1rem; color:#6B2E5F;
                     font-variation-settings:'FILL' 1,'wght' 300,'GRAD' 0,'opsz' 24;">psychology</span>
                 <span style="font-size:0.78rem; font-weight:600; letter-spacing:0.05em;
-                    text-transform:uppercase; color:#A78BFA;">Insight</span>
+                    text-transform:uppercase; color:#6B2E5F;">Insight</span>
             </div>
-            <ul style="margin:0; padding-left:1.2rem; font-size:0.88rem; color:#E8ECF1;
+            <ul style="margin:0; padding-left:1.2rem; font-size:0.88rem; color:#1A1815;
                 line-height:1.7; list-style-type:'›  ';">{insight_html}</ul>
         </div>""",
         unsafe_allow_html=True,
@@ -1704,7 +2366,9 @@ st.markdown("<div style='height:1.8rem'></div>", unsafe_allow_html=True)
 
 # ── Tabs ─────────────────────────────────────────────────────────────────────
 
-tab_charts, tab_table, tab_analysis = st.tabs(["Grafici", "Tabella Dati", "Analisi"])
+tab_charts, tab_table, tab_analysis, tab_chat = st.tabs(
+    ["Grafici", "Tabella Dati", "Analisi", "Chat"]
+)
 
 with tab_charts:
     c1, c2, c3 = st.columns(3)
@@ -1722,10 +2386,10 @@ with tab_charts:
         fig_class.update_traces(
             textinfo="label+percent",
             textposition="auto",
-            textfont=dict(size=11, family="DM Sans"),
+            textfont=dict(size=11, family="Bricolage Grotesque"),
             insidetextorientation="horizontal",
             hovertemplate="<b>%{label}</b><br>€ %{value:,.2f}<br>%{percent}<extra></extra>",
-            marker=dict(line=dict(color="#0B0E11", width=2)),
+            marker=dict(line=dict(color="#F4ECDF", width=2)),
         )
         fig_class.update_layout(
             **PLOTLY_LAYOUT,
@@ -1733,7 +2397,7 @@ with tab_charts:
             annotations=[dict(
                 text="Classe",
                 x=0.5, y=0.5,
-                font=dict(size=13, color="#4A5568", family="DM Sans"),
+                font=dict(size=13, color="#A09A8E", family="Bricolage Grotesque"),
                 showarrow=False,
             )],
         )
@@ -1752,10 +2416,10 @@ with tab_charts:
         fig_sector.update_traces(
             textinfo="label+percent",
             textposition="auto",
-            textfont=dict(size=11, family="DM Sans"),
+            textfont=dict(size=11, family="Bricolage Grotesque"),
             insidetextorientation="horizontal",
             hovertemplate="<b>%{label}</b><br>€ %{value:,.2f}<br>%{percent}<extra></extra>",
-            marker=dict(line=dict(color="#0B0E11", width=2)),
+            marker=dict(line=dict(color="#F4ECDF", width=2)),
         )
         fig_sector.update_layout(
             **PLOTLY_LAYOUT,
@@ -1763,7 +2427,7 @@ with tab_charts:
             annotations=[dict(
                 text="Settore",
                 x=0.5, y=0.5,
-                font=dict(size=13, color="#4A5568", family="DM Sans"),
+                font=dict(size=13, color="#A09A8E", family="Bricolage Grotesque"),
                 showarrow=False,
             )],
         )
@@ -1782,10 +2446,10 @@ with tab_charts:
         fig_geo.update_traces(
             textinfo="label+percent",
             textposition="auto",
-            textfont=dict(size=11, family="DM Sans"),
+            textfont=dict(size=11, family="Bricolage Grotesque"),
             insidetextorientation="horizontal",
             hovertemplate="<b>%{label}</b><br>€ %{value:,.2f}<br>%{percent}<extra></extra>",
-            marker=dict(line=dict(color="#0B0E11", width=2)),
+            marker=dict(line=dict(color="#F4ECDF", width=2)),
         )
         fig_geo.update_layout(
             **PLOTLY_LAYOUT,
@@ -1793,7 +2457,7 @@ with tab_charts:
             annotations=[dict(
                 text="Geo",
                 x=0.5, y=0.5,
-                font=dict(size=13, color="#4A5568", family="DM Sans"),
+                font=dict(size=13, color="#A09A8E", family="Bricolage Grotesque"),
                 showarrow=False,
             )],
         )
@@ -1828,28 +2492,28 @@ with tab_charts:
         with alloc_cols[0]:
             st.markdown(
                 f"""<div class="glass-card" style="text-align:center; padding:1rem 1.2rem;">
-                    <span class="mat" style="font-size:1.3rem; color:#22D3EE;
+                    <span class="mat" style="font-size:1.3rem; color:#1F5F5B;
                         font-variation-settings:'FILL' 1,'wght' 300,'GRAD' 0,'opsz' 24;">savings</span>
                     <div style="font-size:0.72rem; font-weight:600; letter-spacing:0.06em;
-                        text-transform:uppercase; color:#4A5568 !important; margin:0.3rem 0 0.2rem;">Obbligazionario</div>
+                        text-transform:uppercase; color:#A09A8E !important; margin:0.3rem 0 0.2rem;">Obbligazionario</div>
                     <div style="font-family:'JetBrains Mono',monospace; font-size:1.8rem; font-weight:700;
-                        color:#22D3EE !important;">{bond_pct:.1f}%</div>
+                        color:#1F5F5B !important;">{bond_pct:.1f}%</div>
                     <div style="font-family:'JetBrains Mono',monospace; font-size:0.8rem;
-                        color:#7A8599 !important;">€ {bond_total_val:,.0f}</div>
+                        color:#6B6258 !important;">€ {bond_total_val:,.0f}</div>
                 </div>""",
                 unsafe_allow_html=True,
             )
         with alloc_cols[1]:
             st.markdown(
                 f"""<div class="glass-card" style="text-align:center; padding:1rem 1.2rem;">
-                    <span class="mat" style="font-size:1.3rem; color:#34D399;
+                    <span class="mat" style="font-size:1.3rem; color:#3B5A36;
                         font-variation-settings:'FILL' 1,'wght' 300,'GRAD' 0,'opsz' 24;">trending_up</span>
                     <div style="font-size:0.72rem; font-weight:600; letter-spacing:0.06em;
-                        text-transform:uppercase; color:#4A5568 !important; margin:0.3rem 0 0.2rem;">Azionario</div>
+                        text-transform:uppercase; color:#A09A8E !important; margin:0.3rem 0 0.2rem;">Azionario</div>
                     <div style="font-family:'JetBrains Mono',monospace; font-size:1.8rem; font-weight:700;
-                        color:#34D399 !important;">{eq_pct:.1f}%</div>
+                        color:#3B5A36 !important;">{eq_pct:.1f}%</div>
                     <div style="font-family:'JetBrains Mono',monospace; font-size:0.8rem;
-                        color:#7A8599 !important;">€ {eq_total_val:,.0f}</div>
+                        color:#6B6258 !important;">€ {eq_total_val:,.0f}</div>
                 </div>""",
                 unsafe_allow_html=True,
             )
@@ -1857,14 +2521,14 @@ with tab_charts:
             with alloc_cols[2]:
                 st.markdown(
                     f"""<div class="glass-card" style="text-align:center; padding:1rem 1.2rem;">
-                        <span class="mat" style="font-size:1.3rem; color:#FBBF24;
+                        <span class="mat" style="font-size:1.3rem; color:#B45309;
                             font-variation-settings:'FILL' 1,'wght' 300,'GRAD' 0,'opsz' 24;">category</span>
                         <div style="font-size:0.72rem; font-weight:600; letter-spacing:0.06em;
-                            text-transform:uppercase; color:#4A5568 !important; margin:0.3rem 0 0.2rem;">Altro</div>
+                            text-transform:uppercase; color:#A09A8E !important; margin:0.3rem 0 0.2rem;">Altro</div>
                         <div style="font-family:'JetBrains Mono',monospace; font-size:1.8rem; font-weight:700;
-                            color:#FBBF24 !important;">{other_pct:.1f}%</div>
+                            color:#B45309 !important;">{other_pct:.1f}%</div>
                         <div style="font-family:'JetBrains Mono',monospace; font-size:0.8rem;
-                            color:#7A8599 !important;">€ {other_total_val:,.0f}</div>
+                            color:#6B6258 !important;">€ {other_total_val:,.0f}</div>
                     </div>""",
                     unsafe_allow_html=True,
                 )
@@ -1889,20 +2553,20 @@ with tab_charts:
                 fig_bond_sub.update_traces(
                     textinfo="label+percent",
                     textposition="outside",
-                    textfont=dict(size=10, family="DM Sans"),
+                    textfont=dict(size=10, family="Bricolage Grotesque"),
                     insidetextorientation="horizontal",
                     hovertemplate="<b>%{label}</b><br>€ %{value:,.2f}<br>%{percent}<extra></extra>",
-                    marker=dict(line=dict(color="#0B0E11", width=2)),
+                    marker=dict(line=dict(color="#F4ECDF", width=2)),
                 )
                 bond_sub_layout = {k: v for k, v in PLOTLY_LAYOUT.items() if k != "legend"}
                 fig_bond_sub.update_layout(
                     **bond_sub_layout,
                     title_text=f"Obbligazionario — € {bond_total:,.0f}",
                     showlegend=True,
-                    legend=dict(font=dict(size=10, color="#7A8599"), bgcolor="rgba(0,0,0,0)"),
+                    legend=dict(font=dict(size=10, color="#6B6258"), bgcolor="rgba(0,0,0,0)"),
                     annotations=[dict(
                         text="Bond", x=0.5, y=0.5,
-                        font=dict(size=13, color="#4A5568", family="DM Sans"),
+                        font=dict(size=13, color="#A09A8E", family="Bricolage Grotesque"),
                         showarrow=False,
                     )],
                 )
@@ -1923,20 +2587,20 @@ with tab_charts:
                 fig_eq_sub.update_traces(
                     textinfo="label+percent",
                     textposition="outside",
-                    textfont=dict(size=10, family="DM Sans"),
+                    textfont=dict(size=10, family="Bricolage Grotesque"),
                     insidetextorientation="horizontal",
                     hovertemplate="<b>%{label}</b><br>€ %{value:,.2f}<br>%{percent}<extra></extra>",
-                    marker=dict(line=dict(color="#0B0E11", width=2)),
+                    marker=dict(line=dict(color="#F4ECDF", width=2)),
                 )
                 eq_sub_layout = {k: v for k, v in PLOTLY_LAYOUT.items() if k != "legend"}
                 fig_eq_sub.update_layout(
                     **eq_sub_layout,
                     title_text=f"Azionario — € {eq_total:,.0f}",
                     showlegend=True,
-                    legend=dict(font=dict(size=10, color="#7A8599"), bgcolor="rgba(0,0,0,0)"),
+                    legend=dict(font=dict(size=10, color="#6B6258"), bgcolor="rgba(0,0,0,0)"),
                     annotations=[dict(
                         text="Equity", x=0.5, y=0.5,
-                        font=dict(size=13, color="#4A5568", family="DM Sans"),
+                        font=dict(size=13, color="#A09A8E", family="Bricolage Grotesque"),
                         showarrow=False,
                     )],
                 )
@@ -1976,13 +2640,13 @@ with tab_charts:
                     **b_layout,
                     title_text="Titoli Obbligazionari",
                     height=max(300, len(df_b) * 32),
-                    xaxis=dict(gridcolor="rgba(255,255,255,0.04)", zeroline=False,
-                               tickfont=dict(family="JetBrains Mono", size=9, color="#4A5568")),
+                    xaxis=dict(gridcolor="rgba(26,24,21,0.06)", zeroline=False,
+                               tickfont=dict(family="JetBrains Mono", size=9, color="#A09A8E")),
                     yaxis=dict(gridcolor="rgba(0,0,0,0)",
-                               tickfont=dict(family="DM Sans", size=10, color="#7A8599")),
+                               tickfont=dict(family="Bricolage Grotesque", size=10, color="#6B6258")),
                     showlegend=True,
                     legend=dict(orientation="h", y=-0.15, x=0.5, xanchor="center",
-                                font=dict(size=10, color="#7A8599"), bgcolor="rgba(0,0,0,0)"),
+                                font=dict(size=10, color="#6B6258"), bgcolor="rgba(0,0,0,0)"),
                 )
                 st.plotly_chart(fig_b_bar, use_container_width=True)
 
@@ -2011,13 +2675,13 @@ with tab_charts:
                     **e_layout,
                     title_text="Titoli Azionari",
                     height=max(300, len(df_e) * 32),
-                    xaxis=dict(gridcolor="rgba(255,255,255,0.04)", zeroline=False,
-                               tickfont=dict(family="JetBrains Mono", size=9, color="#4A5568")),
+                    xaxis=dict(gridcolor="rgba(26,24,21,0.06)", zeroline=False,
+                               tickfont=dict(family="JetBrains Mono", size=9, color="#A09A8E")),
                     yaxis=dict(gridcolor="rgba(0,0,0,0)",
-                               tickfont=dict(family="DM Sans", size=10, color="#7A8599")),
+                               tickfont=dict(family="Bricolage Grotesque", size=10, color="#6B6258")),
                     showlegend=True,
                     legend=dict(orientation="h", y=-0.15, x=0.5, xanchor="center",
-                                font=dict(size=10, color="#7A8599"), bgcolor="rgba(0,0,0,0)"),
+                                font=dict(size=10, color="#6B6258"), bgcolor="rgba(0,0,0,0)"),
                 )
                 st.plotly_chart(fig_e_bar, use_container_width=True)
 
@@ -2059,17 +2723,17 @@ with tab_charts:
         height=bar_height,
         barmode="stack",
         xaxis=dict(
-            gridcolor="rgba(255,255,255,0.04)",
+            gridcolor="rgba(26,24,21,0.06)",
             zeroline=False,
-            tickfont=dict(family="JetBrains Mono", size=10, color="#4A5568"),
+            tickfont=dict(family="JetBrains Mono", size=10, color="#A09A8E"),
         ),
         yaxis=dict(
             gridcolor="rgba(0,0,0,0)",
-            tickfont=dict(family="DM Sans", size=11, color="#7A8599"),
+            tickfont=dict(family="Bricolage Grotesque", size=11, color="#6B6258"),
         ),
         showlegend=True,
         legend=dict(orientation="h", y=-0.12, x=0.5, xanchor="center",
-                    font=dict(size=11, color="#7A8599"), bgcolor="rgba(0,0,0,0)"),
+                    font=dict(size=11, color="#6B6258"), bgcolor="rgba(0,0,0,0)"),
     )
     st.plotly_chart(fig_bar, use_container_width=True)
 
@@ -2080,7 +2744,7 @@ with tab_table:
 
     def highlight_missing(val):
         if pd.isna(val) or str(val).strip() in ("", "N/A", "n/a", "n/d"):
-            return "background-color: rgba(251,191,36,0.12); color: #FBBF24;"
+            return "background-color: rgba(180,83,9,0.10); color: #B45309;"
         return ""
 
     styled = df_display.style.applymap(highlight_missing).format(
@@ -2145,7 +2809,7 @@ with tab_analysis:
                 f"""<div class="glass-card kpi-card">
                     <div class="kpi-label">Top-5 Concentrazione</div>
                     <div class="kpi-value" style="font-size:1.6rem;">{risk_metrics['top5_pct']:.1f}%</div>
-                    <div class="kpi-sub" style="color:{'#FB7185' if risk_metrics['top5_pct'] > 80 else '#FBBF24' if risk_metrics['top5_pct'] > 60 else '#34D399'};">
+                    <div class="kpi-sub" style="color:{'#C9893A' if risk_metrics['top5_pct'] > 80 else '#B45309' if risk_metrics['top5_pct'] > 60 else '#3B5A36'};">
                         {'Alto' if risk_metrics['top5_pct'] > 80 else 'Moderato' if risk_metrics['top5_pct'] > 60 else 'Basso'}</div>
                 </div>""",
                 unsafe_allow_html=True,
@@ -2165,7 +2829,7 @@ with tab_analysis:
                 f"""<div class="glass-card kpi-card">
                     <div class="kpi-label">Sottocategorie Attive</div>
                     <div class="kpi-value" style="font-size:1.6rem;">{risk_metrics['n_subtypes']}</div>
-                    <div class="kpi-sub" style="color:#7A8599;">peso &gt; 2%</div>
+                    <div class="kpi-sub" style="color:#6B6258;">peso &gt; 2%</div>
                 </div>""",
                 unsafe_allow_html=True,
             )
@@ -2197,13 +2861,13 @@ with tab_analysis:
             **sub_layout,
             height=max(350, len(subtype_agg) * 32),
             barmode="stack",
-            xaxis=dict(title="Peso %", gridcolor="rgba(255,255,255,0.04)", zeroline=False,
-                       tickfont=dict(family="JetBrains Mono", size=10, color="#4A5568")),
+            xaxis=dict(title="Peso %", gridcolor="rgba(26,24,21,0.06)", zeroline=False,
+                       tickfont=dict(family="JetBrains Mono", size=10, color="#A09A8E")),
             yaxis=dict(gridcolor="rgba(0,0,0,0)",
-                       tickfont=dict(family="DM Sans", size=10, color="#7A8599")),
+                       tickfont=dict(family="Bricolage Grotesque", size=10, color="#6B6258")),
             showlegend=True,
             legend=dict(orientation="h", y=-0.15, x=0.5, xanchor="center",
-                        font=dict(size=10, color="#7A8599"), bgcolor="rgba(0,0,0,0)"),
+                        font=dict(size=10, color="#6B6258"), bgcolor="rgba(0,0,0,0)"),
         )
         st.plotly_chart(fig_sub, use_container_width=True)
 
@@ -2226,10 +2890,10 @@ with tab_analysis:
             fig_hist.update_layout(
                 **PLOTLY_LAYOUT,
                 title_text="Distribuzione Controvalore",
-                xaxis=dict(title="Controvalore (€)", gridcolor="rgba(255,255,255,0.04)",
-                           tickfont=dict(family="JetBrains Mono", size=10, color="#4A5568")),
-                yaxis=dict(title="Frequenza", gridcolor="rgba(255,255,255,0.04)",
-                           tickfont=dict(family="JetBrains Mono", size=10, color="#4A5568")),
+                xaxis=dict(title="Controvalore (€)", gridcolor="rgba(26,24,21,0.06)",
+                           tickfont=dict(family="JetBrains Mono", size=10, color="#A09A8E")),
+                yaxis=dict(title="Frequenza", gridcolor="rgba(26,24,21,0.06)",
+                           tickfont=dict(family="JetBrains Mono", size=10, color="#A09A8E")),
                 height=350,
             )
             fig_hist.update_traces(marker_line_width=0)
@@ -2247,9 +2911,9 @@ with tab_analysis:
                 **PLOTLY_LAYOUT,
                 title_text="Conteggio per Classe",
                 xaxis=dict(gridcolor="rgba(0,0,0,0)",
-                           tickfont=dict(family="DM Sans", size=10, color="#7A8599")),
-                yaxis=dict(gridcolor="rgba(255,255,255,0.04)",
-                           tickfont=dict(family="JetBrains Mono", size=10, color="#4A5568")),
+                           tickfont=dict(family="Bricolage Grotesque", size=10, color="#6B6258")),
+                yaxis=dict(gridcolor="rgba(26,24,21,0.06)",
+                           tickfont=dict(family="JetBrains Mono", size=10, color="#A09A8E")),
                 showlegend=False,
                 height=350,
             )
@@ -2321,30 +2985,40 @@ with tab_analysis:
                 )
                 if st.button("Simula aggiunta", key="btn_add"):
                     new_total = total_value + add_amount
-                    new_bond_pct = risk_metrics.get("bond_pct", 0)
-                    new_eq_pct = risk_metrics.get("eq_pct", 0)
-                    new_other_pct = risk_metrics.get("other_pct", 0)
-                    add_pct = add_amount / new_total * 100
+                    cur_bond   = risk_metrics.get("bond_pct", 0)
+                    cur_eq     = risk_metrics.get("eq_pct", 0)
+                    cur_crypto = risk_metrics.get("crypto_pct", 0)
+                    cur_other  = risk_metrics.get("other_pct", 0)
                     if add_class == "BOND":
-                        new_bond_pct = (risk_metrics.get("bond_pct", 0) * total_value / 100 + add_amount) / new_total * 100
-                        new_eq_pct = risk_metrics.get("eq_pct", 0) * total_value / new_total
-                        new_other_pct = 100 - new_bond_pct - new_eq_pct
+                        new_bond   = (cur_bond * total_value / 100 + add_amount) / new_total * 100
+                        new_eq     = cur_eq * total_value / new_total
+                        new_crypto = cur_crypto * total_value / new_total
+                        new_other  = max(0.0, 100 - new_bond - new_eq - new_crypto)
                     elif add_class in ("ETF", "AZIONE"):
-                        new_eq_pct = (risk_metrics.get("eq_pct", 0) * total_value / 100 + add_amount) / new_total * 100
-                        new_bond_pct = risk_metrics.get("bond_pct", 0) * total_value / new_total
-                        new_other_pct = 100 - new_bond_pct - new_eq_pct
+                        new_eq     = (cur_eq * total_value / 100 + add_amount) / new_total * 100
+                        new_bond   = cur_bond * total_value / new_total
+                        new_crypto = cur_crypto * total_value / new_total
+                        new_other  = max(0.0, 100 - new_bond - new_eq - new_crypto)
+                    elif add_class == "CRYPTO":
+                        new_crypto = (cur_crypto * total_value / 100 + add_amount) / new_total * 100
+                        new_bond   = cur_bond * total_value / new_total
+                        new_eq     = cur_eq * total_value / new_total
+                        new_other  = max(0.0, 100 - new_bond - new_eq - new_crypto)
                     else:
-                        new_other_pct = (risk_metrics.get("other_pct", 0) * total_value / 100 + add_amount) / new_total * 100
-                        new_bond_pct = risk_metrics.get("bond_pct", 0) * total_value / new_total
-                        new_eq_pct = 100 - new_bond_pct - new_other_pct
+                        new_other  = (cur_other * total_value / 100 + add_amount) / new_total * 100
+                        new_bond   = cur_bond * total_value / new_total
+                        new_eq     = cur_eq * total_value / new_total
+                        new_crypto = cur_crypto * total_value / new_total
 
+                    pie_names  = ["Bond", "Equity", "Crypto", "Altro"]
+                    pie_colors = [CHART_PALETTE[0], CHART_PALETTE[1], CHART_PALETTE[5], CHART_PALETTE[7]]
                     sc1, sc2 = st.columns(2)
                     with sc1:
                         st.markdown("**Prima**")
                         fig_before = px.pie(
-                            names=["Bond", "Equity", "Altro"],
-                            values=[risk_metrics.get("bond_pct", 0), risk_metrics.get("eq_pct", 0), risk_metrics.get("other_pct", 0)],
-                            hole=0.5, color_discrete_sequence=CHART_PALETTE[:3],
+                            names=pie_names,
+                            values=[cur_bond, cur_eq, cur_crypto, cur_other],
+                            hole=0.5, color_discrete_sequence=pie_colors,
                         )
                         fig_before.update_layout(**PLOTLY_LAYOUT, height=250, showlegend=True,
                                                  legend=dict(font=dict(size=10)))
@@ -2353,9 +3027,9 @@ with tab_analysis:
                     with sc2:
                         st.markdown("**Dopo**")
                         fig_after = px.pie(
-                            names=["Bond", "Equity", "Altro"],
-                            values=[new_bond_pct, new_eq_pct, new_other_pct],
-                            hole=0.5, color_discrete_sequence=CHART_PALETTE[:3],
+                            names=pie_names,
+                            values=[new_bond, new_eq, new_crypto, new_other],
+                            hole=0.5, color_discrete_sequence=pie_colors,
                         )
                         fig_after.update_layout(**PLOTLY_LAYOUT, height=250, showlegend=True,
                                                 legend=dict(font=dict(size=10)))
@@ -2367,19 +3041,228 @@ with tab_analysis:
                     "Variazione azionario (%)", min_value=-50, max_value=50, value=-20,
                     key="stress_pct",
                 )
+                crypto_beta = st.slider(
+                    "Variazione crypto (% — tipicamente 2×–3× equity in bear market)",
+                    min_value=-90, max_value=200, value=-40,
+                    key="stress_crypto_pct",
+                )
                 if st.button("Simula stress test", key="btn_stress"):
-                    eq_val = risk_metrics.get("eq_pct", 0) * total_value / 100
-                    eq_delta = eq_val * stress_pct / 100
-                    new_total_stress = total_value + eq_delta
-                    sc1, sc2, sc3 = st.columns(3)
+                    eq_val     = risk_metrics.get("eq_pct", 0) * total_value / 100
+                    crypto_val = risk_metrics.get("crypto_pct", 0) * total_value / 100
+                    eq_delta     = eq_val * stress_pct / 100
+                    crypto_delta = crypto_val * crypto_beta / 100
+                    total_delta  = eq_delta + crypto_delta
+                    new_total_stress = total_value + total_delta
+                    sc1, sc2, sc3, sc4 = st.columns(4)
                     with sc1:
                         st.metric("Controvalore Attuale", f"€ {total_value:,.2f}")
                     with sc2:
                         st.metric("Impatto Azionario", f"€ {eq_delta:,.2f}",
                                   f"{stress_pct:+d}%")
                     with sc3:
+                        st.metric("Impatto Crypto", f"€ {crypto_delta:,.2f}",
+                                  f"{crypto_beta:+d}%")
+                    with sc4:
                         st.metric("Controvalore Post-Stress", f"€ {new_total_stress:,.2f}",
-                                  f"€ {eq_delta:,.2f}")
+                                  f"€ {total_delta:,.2f}")
+
+# ── Chat tab (Anthropic Claude) ──────────────────────────────────────────────
+
+def _portfolio_context(df: pd.DataFrame, risk: dict | None) -> str:
+    """Costruisce un contesto testuale compatto del portafoglio per Claude."""
+    total = df["Controvalore"].sum()
+    lines = [f"# Portafoglio — Controvalore totale: € {total:,.2f}", f"Numero titoli: {len(df)}", ""]
+
+    by_class = df.groupby("Classe")["Controvalore"].sum().sort_values(ascending=False)
+    lines.append("## Allocazione per classe")
+    for cls, val in by_class.items():
+        pct = val / total * 100 if total else 0
+        lines.append(f"- {cls}: € {val:,.2f} ({pct:.2f}%)")
+    lines.append("")
+
+    by_sub = df.groupby("Sottotipo")["Controvalore"].sum().sort_values(ascending=False)
+    lines.append("## Allocazione per sottotipo")
+    for sub, val in by_sub.head(15).items():
+        pct = val / total * 100 if total else 0
+        lines.append(f"- {sub}: € {val:,.2f} ({pct:.2f}%)")
+    lines.append("")
+
+    by_geo = df.groupby("Geografia")["Controvalore"].sum().sort_values(ascending=False)
+    lines.append("## Esposizione geografica")
+    for geo, val in by_geo.items():
+        pct = val / total * 100 if total else 0
+        lines.append(f"- {geo}: € {val:,.2f} ({pct:.2f}%)")
+    lines.append("")
+
+    lines.append("## Holdings (Nome | Classe | Controvalore | Peso %)")
+    cols = [c for c in ("Nome", "Classe", "Controvalore", "Peso %", "Sottotipo", "Geografia") if c in df.columns]
+    rows = df[cols].sort_values("Controvalore", ascending=False)
+    for _, r in rows.iterrows():
+        nome = str(r.get("Nome", ""))[:80]
+        ctv = r.get("Controvalore")
+        peso = r.get("Peso %")
+        ctv_s = f"€ {ctv:,.2f}" if pd.notna(ctv) else "N/D"
+        peso_s = f"{peso:.2f}%" if pd.notna(peso) else "N/D"
+        lines.append(
+            f"- {nome} | {r.get('Classe','')} | {ctv_s} | {peso_s} "
+            f"| {r.get('Sottotipo','')} | {r.get('Geografia','')}"
+        )
+
+    if risk:
+        lines.append("")
+        lines.append("## Metriche di rischio")
+        for k, v in risk.items():
+            if isinstance(v, (int, float)):
+                lines.append(f"- {k}: {v:.2f}" if isinstance(v, float) else f"- {k}: {v}")
+
+    return "\n".join(lines)
+
+
+CHAT_SYSTEM_PROMPT = """Sei un consulente finanziario che assiste l'utente nell'analisi del suo portafoglio.
+Rispondi in italiano, in modo conciso e professionale.
+
+Hai accesso al portafoglio completo dell'utente nel messaggio successivo. Quando l'utente chiede di:
+- ribilanciare per liberare liquidità: proponi vendite specifiche con importi e motivazioni (es. ridurre concentrazione, mantenere diversificazione, vendere prima asset più liquidi/meno strategici)
+- valutare il rischio: usa le metriche fornite (HHI, %azionario, %obbligazionario)
+- spiegare scelte: rifletti sulla logica dell'allocazione
+
+Regole:
+- Quando proponi vendite, indica sempre: nome del titolo, importo da vendere in €, peso prima/dopo, motivazione.
+- Per liberare liquidità preferisci: 1) ridurre posizioni sovrappesate, 2) vendere asset più liquidi (ETF, azioni, crypto), 3) mantenere diversificazione di classe.
+- Non dare mai consigli che assomiglino a "promesse di rendimento". Ricorda che è una simulazione informativa, non consulenza autorizzata.
+- Se mancano dati per rispondere, chiedilo invece di inventare.
+"""
+
+
+with tab_chat:
+    _hdr_left, _hdr_right = st.columns([5, 1])
+    with _hdr_left:
+        st.markdown(
+            '<div class="section-label"><span class="mat" style="font-size:0.9rem; vertical-align:-2px;">'
+            'forum</span>&nbsp; Chat con Claude</div>',
+            unsafe_allow_html=True,
+        )
+    with _hdr_right:
+        _clear_btn = st.button(
+            "Pulisci", help="Cancella la cronologia della chat", use_container_width=True
+        )
+
+    st.markdown(
+        '<p style="font-size:0.83rem; color:var(--ink-secondary); margin:0.1rem 0 1rem;">'
+        "Esempi: <em>«Devo prelevare 30.000 € per la casa, come ribilanci?»</em> · "
+        "<em>«Sono troppo concentrato su un titolo?»</em> · "
+        "<em>«Quanto pesano le crypto nel mio portafoglio?»</em></p>",
+        unsafe_allow_html=True,
+    )
+
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        try:
+            api_key = st.secrets["ANTHROPIC_API_KEY"]
+        except Exception:
+            api_key = None
+
+    if "chat_history" not in st.session_state:
+        st.session_state.chat_history = load_chat()
+
+    if _clear_btn:
+        st.session_state.chat_history = []
+        save_chat([])
+        st.rerun()
+
+    if not api_key:
+        st.markdown(
+            """<div class="glass-card" style="padding:1rem 1.4rem; border-left:3px solid #B45309;">
+                <div style="font-size:0.78rem; font-weight:700; letter-spacing:0.06em;
+                    text-transform:uppercase; color:#B45309; margin-bottom:0.4rem;">
+                    API key mancante
+                </div>
+                <p style="font-size:0.86rem; color:#1A1815; margin:0; line-height:1.6;">
+                    Imposta <code>ANTHROPIC_API_KEY</code> come variabile d'ambiente oppure
+                    in <code>.streamlit/secrets.toml</code>:<br>
+                    <code style="display:block; margin-top:0.4rem; padding:0.5rem; background:rgba(26,24,21,0.06);
+                        border-radius:4px;">ANTHROPIC_API_KEY = "sk-ant-..."</code>
+                </p>
+            </div>""",
+            unsafe_allow_html=True,
+        )
+    else:
+        # ── History messages (scrollable) ─────────────────────────────
+        if st.session_state.chat_history:
+            with st.container(height=480, border=False):
+                turn_idx = 0
+                for i, msg in enumerate(st.session_state.chat_history):
+                    if msg["role"] == "user":
+                        turn_idx += 1
+                        if i > 0:
+                            st.markdown(
+                                f'<div class="chat-turn-sep">Domanda {turn_idx}</div>',
+                                unsafe_allow_html=True,
+                            )
+                    with st.chat_message(msg["role"]):
+                        st.markdown(msg["content"])
+        else:
+            st.markdown(
+                '<p style="font-size:0.83rem; color:var(--ink-muted); text-align:center;'
+                ' padding:2rem 0; font-style:italic;">Nessuna domanda ancora. Inizia qui sotto.</p>',
+                unsafe_allow_html=True,
+            )
+
+        user_input = st.chat_input("Chiedi qualcosa al tuo portafoglio…")
+        if user_input:
+            st.session_state.chat_history.append({"role": "user", "content": user_input})
+            save_chat(st.session_state.chat_history)
+            with st.chat_message("user"):
+                st.markdown(user_input)
+
+            with st.chat_message("assistant"):
+                placeholder = st.empty()
+                try:
+                    from anthropic import Anthropic
+                    client = Anthropic(api_key=api_key)
+
+                    portfolio_ctx = _portfolio_context(df, risk_metrics)
+                    api_messages = [
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": (
+                                        "Ecco lo stato attuale del mio portafoglio (dati strutturati):\n\n"
+                                        f"{portfolio_ctx}"
+                                    ),
+                                    "cache_control": {"type": "ephemeral"},
+                                }
+                            ],
+                        },
+                        {
+                            "role": "assistant",
+                            "content": "Ricevuto. Sono pronto a rispondere su questo portafoglio.",
+                        },
+                    ]
+                    for m in st.session_state.chat_history:
+                        api_messages.append({"role": m["role"], "content": m["content"]})
+
+                    full_text = ""
+                    with client.messages.stream(
+                        model="claude-sonnet-4-6",
+                        max_tokens=1500,
+                        system=CHAT_SYSTEM_PROMPT,
+                        messages=api_messages,
+                    ) as stream:
+                        for chunk in stream.text_stream:
+                            full_text += chunk
+                            placeholder.markdown(full_text + "▌")
+                    placeholder.markdown(full_text)
+                    st.session_state.chat_history.append({"role": "assistant", "content": full_text})
+                    save_chat(st.session_state.chat_history)
+                except ImportError:
+                    placeholder.error(
+                        "Pacchetto `anthropic` non installato. Esegui: `pip3 install anthropic`"
+                    )
+                except Exception as e:
+                    placeholder.error(f"Errore chiamata Claude: {e}")
 
 # ── Financial-Analyst Report ─────────────────────────────────────────────────
 
@@ -2397,14 +3280,14 @@ if risk_metrics:
     prof_name, prof_color, prof_text = fa["alloc_profile"]
     st.markdown(
         f"""<div class="glass-card" style="padding:1.2rem 1.6rem; margin-bottom:0.8rem;
-            border-left:3px solid {prof_color}; background:rgba(17,19,24,0.9);">
+            border-left:3px solid {prof_color}; background:#FFFFFF;">
             <div style="display:flex; align-items:center; gap:0.6rem; margin-bottom:0.5rem;">
                 <span style="font-family:'JetBrains Mono',monospace; font-size:0.68rem;
                     font-weight:700; letter-spacing:0.1em; text-transform:uppercase;
-                    color:{prof_color}; background:rgba(0,0,0,0.3);
+                    color:{prof_color}; background:rgba(26,24,21,0.05);
                     padding:0.15rem 0.5rem; border-radius:2px;">PROFILO · {prof_name}</span>
             </div>
-            <p style="font-size:0.9rem; color:#E8ECF1; margin:0; line-height:1.7;">{prof_text}</p>
+            <p style="font-size:0.9rem; color:#1A1815; margin:0; line-height:1.7;">{prof_text}</p>
         </div>""",
         unsafe_allow_html=True,
     )
@@ -2421,12 +3304,12 @@ if risk_metrics:
                     text-transform:uppercase; color:{hhi_color}; margin-bottom:0.4rem;">
                     CONCENTRAZIONE · {hhi_name}
                 </div>
-                <p style="font-size:0.86rem; color:#E8ECF1; margin:0 0 0.8rem; line-height:1.6;">{hhi_text}</p>
-                <div style="font-size:0.8rem; color:#7A8599; margin-bottom:0.3rem;">
+                <p style="font-size:0.86rem; color:#1A1815; margin:0 0 0.8rem; line-height:1.6;">{hhi_text}</p>
+                <div style="font-size:0.8rem; color:#6B6258; margin-bottom:0.3rem;">
                     Top-5 posizioni: <span style="color:{hhi_color}; font-family:'JetBrains Mono',monospace;">
                     {fa['top5_pct']:.1f}%</span> del portafoglio
                 </div>
-                <div style="font-size:0.8rem; color:#7A8599;">{fa['sub_comment']}</div>
+                <div style="font-size:0.8rem; color:#6B6258;">{fa['sub_comment']}</div>
             </div>""",
             unsafe_allow_html=True,
         )
@@ -2434,17 +3317,17 @@ if risk_metrics:
     with fa_c2:
         st.markdown(
             f"""<div class="glass-card" style="padding:1.1rem 1.4rem; height:100%;
-                border-left:3px solid #60A5FA;">
+                border-left:3px solid #1E3A8A;">
                 <div style="font-size:0.68rem; font-weight:700; letter-spacing:0.1em;
-                    text-transform:uppercase; color:#60A5FA; margin-bottom:0.4rem;">
+                    text-transform:uppercase; color:#1E3A8A; margin-bottom:0.4rem;">
                     ESPOSIZIONE GEOGRAFICA
                 </div>
-                <p style="font-size:0.86rem; color:#E8ECF1; margin:0 0 0.8rem; line-height:1.6;">{fa['geo_note']}</p>
+                <p style="font-size:0.86rem; color:#1A1815; margin:0 0 0.8rem; line-height:1.6;">{fa['geo_note']}</p>
                 {''.join(
                     f'<div style="display:flex; justify-content:space-between; align-items:center; '
                     f'margin-bottom:0.3rem;">'
-                    f'<span style="font-size:0.8rem; color:#7A8599;">{g}</span>'
-                    f'<span style="font-family:JetBrains Mono,monospace; font-size:0.8rem; color:#60A5FA;">{p:.1f}%</span>'
+                    f'<span style="font-size:0.8rem; color:#6B6258;">{g}</span>'
+                    f'<span style="font-family:JetBrains Mono,monospace; font-size:0.8rem; color:#1E3A8A;">{p:.1f}%</span>'
                     f'</div>'
                     for g, p in fa['top_geo']
                 )}
@@ -2457,7 +3340,7 @@ if risk_metrics:
     # ── Top 5 holdings table ──────────────────────────────────────────────────
     st.markdown(
         '<div style="font-size:0.68rem; font-weight:700; letter-spacing:0.1em; '
-        'text-transform:uppercase; color:#4A5568; margin-bottom:0.4rem;">'
+        'text-transform:uppercase; color:#A09A8E; margin-bottom:0.4rem;">'
         'TOP 5 POSIZIONI PER CONTROVALORE</div>',
         unsafe_allow_html=True,
     )
@@ -2471,7 +3354,7 @@ if risk_metrics:
     # ── Raccomandazioni ───────────────────────────────────────────────────────
     st.markdown(
         '<div style="font-size:0.68rem; font-weight:700; letter-spacing:0.1em; '
-        'text-transform:uppercase; color:#4A5568; margin-bottom:0.6rem;">'
+        'text-transform:uppercase; color:#A09A8E; margin-bottom:0.6rem;">'
         'RACCOMANDAZIONI OPERATIVE</div>',
         unsafe_allow_html=True,
     )
@@ -2479,12 +3362,12 @@ if risk_metrics:
         st.markdown(
             f"""<div style="display:flex; gap:0.8rem; align-items:flex-start;
                 margin-bottom:0.5rem; padding:0.7rem 1rem;
-                background:rgba(17,19,24,0.8); border-radius:8px;
+                background:#FBF7EE; border-radius:8px;
                 border-left:2px solid {rec_color};">
                 <span style="font-family:'JetBrains Mono',monospace; font-size:0.65rem;
                     font-weight:700; color:{rec_color}; white-space:nowrap;
                     padding-top:0.1rem;">{priority.upper()}</span>
-                <span style="font-size:0.86rem; color:#E8ECF1; line-height:1.6;">{rec_text}</span>
+                <span style="font-size:0.86rem; color:#1A1815; line-height:1.6;">{rec_text}</span>
             </div>""",
             unsafe_allow_html=True,
         )
@@ -2500,7 +3383,7 @@ with st.expander(
 ):
     if qr["missing_cells"] == 0:
         st.markdown(
-            '<p style="color:#34D399;">Nessun valore mancante — dataset completo.</p>',
+            '<p style="color:#3B5A36;">Nessun valore mancante — dataset completo.</p>',
             unsafe_allow_html=True,
         )
     else:
@@ -2511,7 +3394,7 @@ with st.expander(
         st.dataframe(miss_df, use_container_width=True, hide_index=True)
     valid_ctv = df["Controvalore"].notna().sum() if "Controvalore" in df.columns else 0
     st.markdown(
-        f'<p style="font-family:JetBrains Mono,monospace; font-size:0.75rem; color:#4A5568;">'
+        f'<p style="font-family:JetBrains Mono,monospace; font-size:0.75rem; color:#A09A8E;">'
         f'File: {", ".join(uf.name for uf in uploaded_files)} &nbsp;·&nbsp; {qr["rows"]} righe lette &nbsp;·&nbsp; '
         f'{len(df)} righe processate &nbsp;·&nbsp; {valid_ctv} con controvalore</p>',
         unsafe_allow_html=True,
