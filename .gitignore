@@ -17,6 +17,8 @@ env/
 *.xlsx
 *.csv
 !test_portfolio.csv
+crypto.json
+liquidity.json
 
 # Streamlit
 .streamlit/

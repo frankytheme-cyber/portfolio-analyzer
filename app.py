@@ -391,6 +391,33 @@ st.html(
         transform: translate(-1px, -1px) !important;
         box-shadow: 4px 4px 0 var(--rule-soft) !important;
     }
+    /* Forza il colore del testo interno (Streamlit avvolge la label in <p>/<div>) */
+    .stDownloadButton > button p,
+    .stDownloadButton > button span,
+    .stDownloadButton > button div,
+    .stButton > button p,
+    .stButton > button span,
+    .stButton > button div,
+    section[data-testid="stSidebar"] button[kind="formSubmit"] p,
+    section[data-testid="stSidebar"] button[kind="formSubmit"] span,
+    section[data-testid="stSidebar"] [data-testid="baseButton-secondaryFormSubmit"] p,
+    section[data-testid="stSidebar"] [data-testid="baseButton-secondaryFormSubmit"] span {
+        color: var(--paper-cool) !important;
+    }
+    /* Stato disabilitato — testo grigio chiaro su nero leggibile */
+    .stButton > button:disabled,
+    .stDownloadButton > button:disabled {
+        background: var(--ink-muted) !important;
+        border-color: var(--ink-muted) !important;
+        cursor: not-allowed !important;
+        opacity: 0.7 !important;
+    }
+    .stButton > button:disabled p,
+    .stButton > button:disabled span,
+    .stDownloadButton > button:disabled p,
+    .stDownloadButton > button:disabled span {
+        color: var(--paper-cool) !important;
+    }
 
     /* ── Form inputs (main area) ─────────────────────────────────── */
     .stTextInput input, .stNumberInput input, .stTextArea textarea,
@@ -1903,6 +1930,30 @@ def save_chat(history: list[dict]) -> None:
         json.dump(history, f, ensure_ascii=False, indent=2)
 
 
+# ── Obiettivi (file markdown opzionale) ─────────────────────────────────────
+
+GOALS_FILE = Path(__file__).parent / ".cache" / "goals.md"
+
+
+def load_goals() -> str:
+    if not GOALS_FILE.exists():
+        return ""
+    try:
+        return GOALS_FILE.read_text(encoding="utf-8")
+    except Exception:
+        return ""
+
+
+def save_goals(text: str) -> None:
+    GOALS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    GOALS_FILE.write_text(text, encoding="utf-8")
+
+
+def clear_goals() -> None:
+    if GOALS_FILE.exists():
+        GOALS_FILE.unlink()
+
+
 def crypto_rows_to_df(rows: list[dict]) -> pd.DataFrame:
     """Trasforma le crypto in righe coerenti con il portafoglio (Classe=CRYPTO)."""
     if not rows:
@@ -1928,11 +1979,71 @@ def crypto_rows_to_df(rows: list[dict]) -> pd.DataFrame:
     return pd.DataFrame(out)
 
 
+# ── Liquidità manuale (persistenza locale) ──────────────────────────────────
+
+LIQUIDITY_FILE = Path(__file__).parent / "liquidity.json"
+
+LIQUIDITY_TYPES = [
+    "Conto Corrente",
+    "Conto Deposito",
+    "Pronti contro Termine",
+    "Cash Valuta Estera",
+    "Altro",
+]
+
+
+def load_liquidity() -> list[dict]:
+    if not LIQUIDITY_FILE.exists():
+        return []
+    try:
+        with LIQUIDITY_FILE.open("r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, list) else []
+    except Exception:
+        return []
+
+
+def save_liquidity(rows: list[dict]) -> None:
+    with LIQUIDITY_FILE.open("w", encoding="utf-8") as f:
+        json.dump(rows, f, ensure_ascii=False, indent=2)
+
+
+def liquidity_rows_to_df(rows: list[dict]) -> pd.DataFrame:
+    """Trasforma la liquidità in righe del portafoglio (Classe=LIQUIDITÀ)."""
+    if not rows:
+        return pd.DataFrame()
+    out = []
+    for r in rows:
+        importo = float(r.get("importo") or 0)
+        nome = (r.get("nome") or "").strip()
+        tipo = (r.get("tipo") or "Conto Corrente").strip()
+        valuta = (r.get("valuta") or "EUR").strip().upper()
+        out.append({
+            "Nome": nome,
+            "ISIN": "",
+            "Quantità": importo,
+            "Prezzo Acquisto": 1.0,
+            "Controvalore": importo,
+            "Classe": "LIQUIDITÀ",
+            "Settore": "Liquidità",
+            "Sottotipo": tipo,
+            "Geografia": "—" if valuta == "EUR" else valuta,
+            "Fonte": "Liquidità manuale",
+        })
+    return pd.DataFrame(out)
+
+
 # ── Sidebar ──────────────────────────────────────────────────────────────────
 
 # Inizializza lo stato delle crypto (caricato da disco al primo avvio)
 if "crypto_rows" not in st.session_state:
     st.session_state.crypto_rows = load_crypto()
+if "liquidity_rows" not in st.session_state:
+    st.session_state.liquidity_rows = load_liquidity()
+if "goals_text" not in st.session_state:
+    st.session_state.goals_text = load_goals()
+if "goals_analysis" not in st.session_state:
+    st.session_state.goals_analysis = ""
 
 with st.sidebar:
     st.markdown(
@@ -1975,6 +2086,58 @@ with st.sidebar:
             )
         if st.button("Rimuovi file caricati", use_container_width=True, key="clear_uploads_btn"):
             clear_uploads()
+            st.rerun()
+
+    # ── Obiettivi (Markdown) ───────────────────────────────────────────────
+    st.markdown("---")
+    st.markdown(
+        '<div style="display:flex; align-items:center; gap:0.4rem; margin-bottom:0.4rem;">'
+        '<span class="mat" style="font-size:1.1rem; color:#9E2A2B; '
+        "font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24;\">flag</span>"
+        '<span style="font-family:Bricolage Grotesque,sans-serif; font-weight:700; font-size:0.85rem; color:#1A1815; text-transform:uppercase; letter-spacing:0.08em;">'
+        "Obiettivi</span></div>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        '<p style="font-size:0.75rem; color:#A09A8E !important; margin-bottom:0.6rem;">'
+        "Carica un file <code>.md</code> con i tuoi obiettivi (orizzonte, "
+        "asset allocation target, vincoli di liquidità, ribilanciamento…). "
+        "Verranno usati nell'analisi e nella chat.</p>",
+        unsafe_allow_html=True,
+    )
+    goals_upload = st.file_uploader(
+        "Trascina qui il file .md",
+        type=["md", "markdown", "txt"],
+        accept_multiple_files=False,
+        key="goals_uploader",
+    )
+    if goals_upload is not None:
+        try:
+            new_text = goals_upload.read().decode("utf-8")
+            if new_text != st.session_state.goals_text:
+                st.session_state.goals_text = new_text
+                # Reset analisi precedente perché basata su vecchi obiettivi
+                st.session_state.goals_analysis = ""
+                save_goals(new_text)
+                st.rerun()
+        except Exception as e:
+            st.warning(f"Impossibile leggere il file: {e}")
+
+    if st.session_state.goals_text:
+        preview = st.session_state.goals_text.strip().splitlines()
+        first_line = preview[0] if preview else "(vuoto)"
+        st.markdown(
+            f'<p style="font-family:JetBrains Mono,monospace; font-size:0.72rem; '
+            f'color:#3B5A36 !important; margin:0.4rem 0 0.2rem;">'
+            f'✓ {len(st.session_state.goals_text)} caratteri · {len(preview)} righe</p>'
+            f'<p style="font-family:Fraunces,serif; font-style:italic; font-size:0.78rem; '
+            f'color:#6B6258 !important; margin:0 0 0.4rem;">{first_line[:80]}{"…" if len(first_line) > 80 else ""}</p>',
+            unsafe_allow_html=True,
+        )
+        if st.button("Rimuovi obiettivi", use_container_width=True, key="clear_goals_btn"):
+            st.session_state.goals_text = ""
+            st.session_state.goals_analysis = ""
+            clear_goals()
             st.rerun()
 
     # ── Crypto manuali ─────────────────────────────────────────────────────
@@ -2077,6 +2240,113 @@ with st.sidebar:
                     if del_clicked:
                         st.session_state.crypto_rows.pop(idx)
                         save_crypto(st.session_state.crypto_rows)
+                        st.rerun()
+
+    # ── Liquidità manuale ──────────────────────────────────────────────────
+    st.markdown("---")
+    st.markdown(
+        '<div style="display:flex; align-items:center; gap:0.4rem; margin-bottom:0.4rem;">'
+        '<span class="mat" style="font-size:1.1rem; color:#1F5F5B; '
+        "font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24;\">savings</span>"
+        '<span style="font-family:Bricolage Grotesque,sans-serif; font-weight:700; font-size:0.85rem; color:#1A1815; text-transform:uppercase; letter-spacing:0.08em;">'
+        "Liquidità</span></div>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        '<p style="font-size:0.75rem; color:#A09A8E !important; margin-bottom:0.6rem;">'
+        "Aggiungi conti correnti, depositi, cash. Salvati in <code>liquidity.json</code>.</p>",
+        unsafe_allow_html=True,
+    )
+
+    with st.form("liquidity_add_form", clear_on_submit=True):
+        l_nome = st.text_input("Nome", placeholder="C/C Fineco, Deposito BPM, …", key="l_add_nome")
+        l_tipo = st.selectbox("Tipo", LIQUIDITY_TYPES, key="l_add_tipo")
+        l_importo = st.number_input(
+            "Importo (€)", min_value=0.0, value=0.0, step=100.0, format="%.2f",
+            key="l_add_importo",
+        )
+        l_valuta = st.text_input("Valuta", value="EUR", key="l_add_valuta")
+        l_submitted = st.form_submit_button("Aggiungi", use_container_width=True)
+        if l_submitted:
+            if not l_nome.strip():
+                st.warning("Inserisci un nome.")
+            elif l_importo <= 0:
+                st.warning("L'importo deve essere > 0.")
+            else:
+                st.session_state.liquidity_rows.append({
+                    "nome": l_nome.strip(),
+                    "tipo": l_tipo,
+                    "importo": float(l_importo),
+                    "valuta": (l_valuta or "EUR").strip().upper(),
+                })
+                save_liquidity(st.session_state.liquidity_rows)
+                st.rerun()
+
+    if st.session_state.liquidity_rows:
+        st.markdown(
+            '<p style="font-size:0.72rem; color:#6B6258 !important; margin:0.6rem 0 0.3rem; '
+            'text-transform:uppercase; letter-spacing:0.06em;">In portafoglio</p>',
+            unsafe_allow_html=True,
+        )
+        for idx, r in enumerate(list(st.session_state.liquidity_rows)):
+            importo = float(r.get("importo") or 0)
+            valuta = (r.get("valuta") or "EUR").upper()
+            label = (
+                f"{r.get('nome','—')}"
+                f"  ·  {r.get('tipo','')}"
+                f"  ·  {valuta} {importo:,.2f}"
+            )
+            with st.expander(label, expanded=False):
+                with st.form(f"liquidity_edit_form_{idx}", clear_on_submit=False):
+                    el_nome = st.text_input(
+                        "Nome", value=str(r.get("nome", "")), key=f"l_e_nome_{idx}"
+                    )
+                    el_tipo = st.selectbox(
+                        "Tipo",
+                        LIQUIDITY_TYPES,
+                        index=LIQUIDITY_TYPES.index(r.get("tipo"))
+                            if r.get("tipo") in LIQUIDITY_TYPES else 0,
+                        key=f"l_e_tipo_{idx}",
+                    )
+                    el_importo = st.number_input(
+                        "Importo (€)",
+                        min_value=0.0,
+                        value=float(r.get("importo") or 0.0),
+                        step=100.0,
+                        format="%.2f",
+                        key=f"l_e_imp_{idx}",
+                    )
+                    el_valuta = st.text_input(
+                        "Valuta",
+                        value=str(r.get("valuta", "EUR")),
+                        key=f"l_e_val_{idx}",
+                    )
+                    lcols = st.columns([1, 1])
+                    with lcols[0]:
+                        l_save_clicked = st.form_submit_button(
+                            "Salva", use_container_width=True
+                        )
+                    with lcols[1]:
+                        l_del_clicked = st.form_submit_button(
+                            "Rimuovi", use_container_width=True
+                        )
+                    if l_save_clicked:
+                        if not el_nome.strip():
+                            st.warning("Inserisci un nome.")
+                        elif el_importo <= 0:
+                            st.warning("L'importo deve essere > 0.")
+                        else:
+                            st.session_state.liquidity_rows[idx] = {
+                                "nome": el_nome.strip(),
+                                "tipo": el_tipo,
+                                "importo": float(el_importo),
+                                "valuta": (el_valuta or "EUR").strip().upper(),
+                            }
+                            save_liquidity(st.session_state.liquidity_rows)
+                            st.rerun()
+                    if l_del_clicked:
+                        st.session_state.liquidity_rows.pop(idx)
+                        save_liquidity(st.session_state.liquidity_rows)
                         st.rerun()
 
     st.markdown("---")
@@ -2248,6 +2518,14 @@ if "_fonte" in df.columns:
 crypto_df = crypto_rows_to_df(st.session_state.get("crypto_rows", []))
 if not crypto_df.empty:
     df = pd.concat([df, crypto_df], ignore_index=True)
+
+# ── Merge liquidità manuale nel portafoglio ──────────────────────────────────
+liquidity_df = liquidity_rows_to_df(st.session_state.get("liquidity_rows", []))
+if not liquidity_df.empty:
+    df = pd.concat([df, liquidity_df], ignore_index=True)
+
+# Ricalcola i pesi su tutto (file + crypto + liquidità)
+if not crypto_df.empty or not liquidity_df.empty:
     total_after = df["Controvalore"].sum()
     df["Peso %"] = (df["Controvalore"] / total_after * 100).round(2) if total_after > 0 else 0
 
@@ -2311,6 +2589,7 @@ CLASS_COLORS = {
     "COMMODITY":   ("#B45309", "rgba(180,83,9,0.16)"),
     "AZIONE":      ("#1E3A8A", "rgba(30,58,138,0.16)"),
     "CRYPTO":      ("#C9893A", "rgba(201,137,58,0.16)"),
+    "LIQUIDITÀ":   ("#7C7C5A", "rgba(124,124,90,0.16)"),
     "ALTRO":       ("#6B6258", "rgba(107,98,88,0.16)"),
 }
 
@@ -2363,6 +2642,113 @@ if portfolio_insights:
     )
 
 st.markdown("<div style='height:1.8rem'></div>", unsafe_allow_html=True)
+
+# ── Claude prompt context (usato dalla tab Analisi e dalla Chat) ────────────
+
+def _portfolio_context(df: pd.DataFrame, risk: dict | None, goals: str | None = None) -> str:
+    """Costruisce un contesto testuale compatto del portafoglio per Claude."""
+    total = df["Controvalore"].sum()
+    lines = [f"# Portafoglio — Controvalore totale: € {total:,.2f}", f"Numero titoli: {len(df)}", ""]
+
+    if goals and goals.strip():
+        lines.append("## Obiettivi dell'utente (file Markdown)")
+        lines.append(goals.strip())
+        lines.append("")
+
+    by_class = df.groupby("Classe")["Controvalore"].sum().sort_values(ascending=False)
+    lines.append("## Allocazione per classe")
+    for cls, val in by_class.items():
+        pct = val / total * 100 if total else 0
+        lines.append(f"- {cls}: € {val:,.2f} ({pct:.2f}%)")
+    lines.append("")
+
+    by_sub = df.groupby("Sottotipo")["Controvalore"].sum().sort_values(ascending=False)
+    lines.append("## Allocazione per sottotipo")
+    for sub, val in by_sub.head(15).items():
+        pct = val / total * 100 if total else 0
+        lines.append(f"- {sub}: € {val:,.2f} ({pct:.2f}%)")
+    lines.append("")
+
+    by_geo = df.groupby("Geografia")["Controvalore"].sum().sort_values(ascending=False)
+    lines.append("## Esposizione geografica")
+    for geo, val in by_geo.items():
+        pct = val / total * 100 if total else 0
+        lines.append(f"- {geo}: € {val:,.2f} ({pct:.2f}%)")
+    lines.append("")
+
+    lines.append("## Holdings (Nome | Classe | Controvalore | Peso %)")
+    cols = [c for c in ("Nome", "Classe", "Controvalore", "Peso %", "Sottotipo", "Geografia") if c in df.columns]
+    rows = df[cols].sort_values("Controvalore", ascending=False)
+    for _, r in rows.iterrows():
+        nome = str(r.get("Nome", ""))[:80]
+        ctv = r.get("Controvalore")
+        peso = r.get("Peso %")
+        ctv_s = f"€ {ctv:,.2f}" if pd.notna(ctv) else "N/D"
+        peso_s = f"{peso:.2f}%" if pd.notna(peso) else "N/D"
+        lines.append(
+            f"- {nome} | {r.get('Classe','')} | {ctv_s} | {peso_s} "
+            f"| {r.get('Sottotipo','')} | {r.get('Geografia','')}"
+        )
+
+    if risk:
+        lines.append("")
+        lines.append("## Metriche di rischio")
+        for k, v in risk.items():
+            if isinstance(v, (int, float)):
+                lines.append(f"- {k}: {v:.2f}" if isinstance(v, float) else f"- {k}: {v}")
+
+    return "\n".join(lines)
+
+
+CHAT_SYSTEM_PROMPT = """Sei un consulente finanziario che assiste l'utente nell'analisi del suo portafoglio.
+Rispondi in italiano, in modo conciso e professionale.
+
+Hai accesso al portafoglio completo dell'utente nel messaggio successivo. Se nello stesso messaggio
+è presente una sezione "## Obiettivi dell'utente", trattala come la dichiarazione di intenti che guida
+ogni tua risposta: orizzonte, target di asset allocation, vincoli, scadenze. Confronta sempre lo stato
+attuale con gli obiettivi e segnala scostamenti.
+
+Quando l'utente chiede di:
+- ribilanciare per liberare liquidità: proponi vendite specifiche con importi e motivazioni (es. ridurre concentrazione, mantenere diversificazione, vendere prima asset più liquidi/meno strategici)
+- valutare il rischio: usa le metriche fornite (HHI, %azionario, %obbligazionario)
+- spiegare scelte: rifletti sulla logica dell'allocazione e degli obiettivi (se presenti)
+
+Regole:
+- Quando proponi vendite, indica sempre: nome del titolo, importo da vendere in €, peso prima/dopo, motivazione.
+- Per liberare liquidità preferisci: 1) ridurre posizioni sovrappesate, 2) vendere asset più liquidi (ETF, azioni, crypto), 3) mantenere diversificazione di classe.
+- Non dare mai consigli che assomiglino a "promesse di rendimento". Ricorda che è una simulazione informativa, non consulenza autorizzata.
+- Se mancano dati per rispondere, chiedilo invece di inventare.
+"""
+
+
+GOALS_ANALYSIS_PROMPT = """Analizza il portafoglio dell'utente alla luce degli obiettivi che ha dichiarato.
+
+Struttura la risposta in queste sezioni (usa intestazioni markdown `##`):
+
+## Sintesi
+2-3 frasi: quanto il portafoglio attuale è coerente con gli obiettivi (allineato / parzialmente / non allineato).
+
+## Scostamenti
+Per ciascun obiettivo dichiarato, indica:
+- valore target (se specificato dall'utente)
+- valore attuale (dal portafoglio)
+- delta in € e/o punti %
+- valutazione (verde/giallo/rosso)
+
+## Punti di forza
+Cosa è già in linea con gli obiettivi (max 3 bullet).
+
+## Aree di intervento
+Lista concreta di azioni operative per avvicinare il portafoglio agli obiettivi:
+- ogni azione deve avere: cosa fare, importo €, motivazione
+- ordinata per priorità (impatto/urgenza)
+
+## Domande aperte
+Cosa manca o è ambiguo negli obiettivi per dare una risposta più precisa.
+
+Sii concreto, mai generico. Niente disclaimer lunghi: alla fine una sola riga "_Simulazione informativa, non consulenza._"
+"""
+
 
 # ── Tabs ─────────────────────────────────────────────────────────────────────
 
@@ -2836,6 +3222,97 @@ with tab_analysis:
 
         st.markdown("<div style='height:1.5rem'></div>", unsafe_allow_html=True)
 
+        # ── Analisi vs Obiettivi (file .md caricato dalla sidebar) ──
+        st.markdown(
+            '<div class="section-label">'
+            '<span class="mat" style="font-size:0.9rem; vertical-align:-2px;">flag</span>'
+            '&nbsp; Analisi vs Obiettivi</div>',
+            unsafe_allow_html=True,
+        )
+
+        goals_text = st.session_state.get("goals_text", "")
+        if not goals_text:
+            st.markdown(
+                '<p style="font-size:0.86rem; color:#6B6258; line-height:1.6;">'
+                "Carica un file <code>.md</code> dalla sidebar (sezione "
+                "<strong>Obiettivi</strong>) per descrivere orizzonte temporale, "
+                "asset allocation target, vincoli di liquidità e regole di "
+                "ribilanciamento. Verranno usati per generare un'analisi mirata "
+                "del portafoglio.</p>",
+                unsafe_allow_html=True,
+            )
+        else:
+            with st.expander("Obiettivi correnti", expanded=False):
+                st.markdown(goals_text)
+
+            _ga_api_key = os.environ.get("ANTHROPIC_API_KEY")
+            if not _ga_api_key:
+                try:
+                    _ga_api_key = st.secrets["ANTHROPIC_API_KEY"]
+                except Exception:
+                    _ga_api_key = None
+
+            ga_cols = st.columns([1, 1, 3])
+            with ga_cols[0]:
+                ga_run = st.button(
+                    "Genera analisi", key="btn_goals_analysis",
+                    use_container_width=True,
+                    disabled=_ga_api_key is None,
+                )
+            with ga_cols[1]:
+                if st.session_state.get("goals_analysis"):
+                    if st.button(
+                        "Pulisci analisi", key="btn_clear_goals_analysis",
+                        use_container_width=True,
+                    ):
+                        st.session_state.goals_analysis = ""
+                        st.rerun()
+
+            if _ga_api_key is None:
+                st.markdown(
+                    '<p style="font-size:0.78rem; color:#B45309; margin-top:0.5rem;">'
+                    "API key Anthropic mancante: imposta <code>ANTHROPIC_API_KEY</code> "
+                    "per generare l'analisi.</p>",
+                    unsafe_allow_html=True,
+                )
+
+            if ga_run and _ga_api_key:
+                try:
+                    from anthropic import Anthropic
+                    _ga_client = Anthropic(api_key=_ga_api_key)
+                    _ga_ctx = _portfolio_context(df, risk_metrics, goals_text)
+                    _ga_placeholder = st.empty()
+                    _ga_full = ""
+                    with _ga_client.messages.stream(
+                        model="claude-sonnet-4-6",
+                        max_tokens=2000,
+                        system=GOALS_ANALYSIS_PROMPT,
+                        messages=[{
+                            "role": "user",
+                            "content": [{
+                                "type": "text",
+                                "text": (
+                                    "Ecco lo stato del portafoglio e gli obiettivi:\n\n"
+                                    f"{_ga_ctx}"
+                                ),
+                                "cache_control": {"type": "ephemeral"},
+                            }],
+                        }],
+                    ) as _ga_stream:
+                        for _chunk in _ga_stream.text_stream:
+                            _ga_full += _chunk
+                            _ga_placeholder.markdown(_ga_full + "▌")
+                    _ga_placeholder.markdown(_ga_full)
+                    st.session_state.goals_analysis = _ga_full
+                except ImportError:
+                    st.error("Pacchetto `anthropic` non installato. Esegui: `pip3 install anthropic`")
+                except Exception as e:
+                    st.error(f"Errore chiamata Claude: {e}")
+            elif st.session_state.get("goals_analysis"):
+                st.markdown(st.session_state.goals_analysis)
+
+        st.markdown("<div style='height:1.5rem'></div>", unsafe_allow_html=True)
+
         # ── Weight distribution chart ──
         st.markdown(
             '<div class="section-label"><span class="mat" style="font-size:0.9rem; vertical-align:-2px;">'
@@ -3067,72 +3544,8 @@ with tab_analysis:
                                   f"€ {total_delta:,.2f}")
 
 # ── Chat tab (Anthropic Claude) ──────────────────────────────────────────────
-
-def _portfolio_context(df: pd.DataFrame, risk: dict | None) -> str:
-    """Costruisce un contesto testuale compatto del portafoglio per Claude."""
-    total = df["Controvalore"].sum()
-    lines = [f"# Portafoglio — Controvalore totale: € {total:,.2f}", f"Numero titoli: {len(df)}", ""]
-
-    by_class = df.groupby("Classe")["Controvalore"].sum().sort_values(ascending=False)
-    lines.append("## Allocazione per classe")
-    for cls, val in by_class.items():
-        pct = val / total * 100 if total else 0
-        lines.append(f"- {cls}: € {val:,.2f} ({pct:.2f}%)")
-    lines.append("")
-
-    by_sub = df.groupby("Sottotipo")["Controvalore"].sum().sort_values(ascending=False)
-    lines.append("## Allocazione per sottotipo")
-    for sub, val in by_sub.head(15).items():
-        pct = val / total * 100 if total else 0
-        lines.append(f"- {sub}: € {val:,.2f} ({pct:.2f}%)")
-    lines.append("")
-
-    by_geo = df.groupby("Geografia")["Controvalore"].sum().sort_values(ascending=False)
-    lines.append("## Esposizione geografica")
-    for geo, val in by_geo.items():
-        pct = val / total * 100 if total else 0
-        lines.append(f"- {geo}: € {val:,.2f} ({pct:.2f}%)")
-    lines.append("")
-
-    lines.append("## Holdings (Nome | Classe | Controvalore | Peso %)")
-    cols = [c for c in ("Nome", "Classe", "Controvalore", "Peso %", "Sottotipo", "Geografia") if c in df.columns]
-    rows = df[cols].sort_values("Controvalore", ascending=False)
-    for _, r in rows.iterrows():
-        nome = str(r.get("Nome", ""))[:80]
-        ctv = r.get("Controvalore")
-        peso = r.get("Peso %")
-        ctv_s = f"€ {ctv:,.2f}" if pd.notna(ctv) else "N/D"
-        peso_s = f"{peso:.2f}%" if pd.notna(peso) else "N/D"
-        lines.append(
-            f"- {nome} | {r.get('Classe','')} | {ctv_s} | {peso_s} "
-            f"| {r.get('Sottotipo','')} | {r.get('Geografia','')}"
-        )
-
-    if risk:
-        lines.append("")
-        lines.append("## Metriche di rischio")
-        for k, v in risk.items():
-            if isinstance(v, (int, float)):
-                lines.append(f"- {k}: {v:.2f}" if isinstance(v, float) else f"- {k}: {v}")
-
-    return "\n".join(lines)
-
-
-CHAT_SYSTEM_PROMPT = """Sei un consulente finanziario che assiste l'utente nell'analisi del suo portafoglio.
-Rispondi in italiano, in modo conciso e professionale.
-
-Hai accesso al portafoglio completo dell'utente nel messaggio successivo. Quando l'utente chiede di:
-- ribilanciare per liberare liquidità: proponi vendite specifiche con importi e motivazioni (es. ridurre concentrazione, mantenere diversificazione, vendere prima asset più liquidi/meno strategici)
-- valutare il rischio: usa le metriche fornite (HHI, %azionario, %obbligazionario)
-- spiegare scelte: rifletti sulla logica dell'allocazione
-
-Regole:
-- Quando proponi vendite, indica sempre: nome del titolo, importo da vendere in €, peso prima/dopo, motivazione.
-- Per liberare liquidità preferisci: 1) ridurre posizioni sovrappesate, 2) vendere asset più liquidi (ETF, azioni, crypto), 3) mantenere diversificazione di classe.
-- Non dare mai consigli che assomiglino a "promesse di rendimento". Ricorda che è una simulazione informativa, non consulenza autorizzata.
-- Se mancano dati per rispondere, chiedilo invece di inventare.
-"""
-
+# Nota: _portfolio_context, CHAT_SYSTEM_PROMPT e GOALS_ANALYSIS_PROMPT sono
+# definiti prima del blocco st.tabs() perché vengono usati anche dalla tab Analisi.
 
 with tab_chat:
     _hdr_left, _hdr_right = st.columns([5, 1])
@@ -3221,7 +3634,9 @@ with tab_chat:
                     from anthropic import Anthropic
                     client = Anthropic(api_key=api_key)
 
-                    portfolio_ctx = _portfolio_context(df, risk_metrics)
+                    portfolio_ctx = _portfolio_context(
+                        df, risk_metrics, st.session_state.get("goals_text", "")
+                    )
                     api_messages = [
                         {
                             "role": "user",
